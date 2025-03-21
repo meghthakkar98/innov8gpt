@@ -1,9 +1,11 @@
+// Application state
 let personalDocs = [];
 let groupDocs = [];
 let activeGroupName = "";
 let currentConversationId = null;
 let userPrompts = [];
 let groupPrompts = [];
+let activeGroupId = null; // Define activeGroupId variable
 
 /*************************************************
  *  LOADING PROMPTS
@@ -13,7 +15,12 @@ const promptSelect = document.getElementById("prompt-select");
 
 function loadUserPrompts() {
   return fetch("/api/prompts")
-    .then(r => r.json())
+    .then(response => {
+      if (!response.ok) {
+        throw new Error(`HTTP error ${response.status}`);
+      }
+      return response.json();
+    })
     .then(data => {
       if (data.prompts) {
         userPrompts = data.prompts;
@@ -24,7 +31,12 @@ function loadUserPrompts() {
 
 function loadGroupPrompts() {
   return fetch("/api/group_prompts")
-    .then(r => r.json())
+    .then(response => {
+      if (!response.ok) {
+        throw new Error(`HTTP error ${response.status}`);
+      }
+      return response.json();
+    })
     .then(data => {
       if (data.prompts) {
         groupPrompts = data.prompts;
@@ -42,10 +54,11 @@ function populatePromptSelect() {
   defaultOpt.textContent = "Select a Prompt...";
   promptSelect.appendChild(defaultOpt);
 
-  // If you want to combine userPrompts + groupPrompts, or separate them
-  // Example: Just combine:
-  const combined = [...userPrompts.map(p => ({...p, scope: "User"})),
-                    ...groupPrompts.map(p => ({...p, scope: "Group"}))];
+  // Combine userPrompts + groupPrompts
+  const combined = [
+    ...userPrompts.map(p => ({...p, scope: "User"})),
+    ...groupPrompts.map(p => ({...p, scope: "Group"}))
+  ];
 
   combined.forEach(promptObj => {
     const opt = document.createElement("option");
@@ -58,6 +71,7 @@ function populatePromptSelect() {
 
 // Toggle show/hide
 const searchPromptsBtn = document.getElementById("search-prompts-btn");
+const userInput = document.getElementById("user-input"); // Define userInput here
 if (searchPromptsBtn) {
   searchPromptsBtn.addEventListener("click", function() {
     if (!promptSelect || !userInput) return;
@@ -76,7 +90,6 @@ if (searchPromptsBtn) {
 
       // Optionally, reset any previously entered text
       userInput.value = "";
-
     } else {
       // Show the text input
       userInput.style.display = "inline-block";
@@ -95,7 +108,12 @@ if (searchPromptsBtn) {
  *************************************************/
 function loadConversations() {
   fetch("/api/get_conversations")
-    .then((response) => response.json())
+    .then((response) => {
+      if (!response.ok) {
+        throw new Error(`HTTP error ${response.status}`);
+      }
+      return response.json();
+    })
     .then((data) => {
       const conversationsList = document.getElementById("conversations-list");
       if (!conversationsList) return;
@@ -160,6 +178,36 @@ function addConversationToList(conversationId, title = null) {
   conversationsList.prepend(convoItem);
 }
 
+function updateConversationInList(conversationId, title) {
+  if (!conversationId || !title) return;
+  
+  const convoItem = document.querySelector(
+    `.conversation-item[data-conversation-id="${conversationId}"]`
+  );
+  
+  if (convoItem) {
+    const d = new Date();
+    convoItem.innerHTML = `
+      <div class="d-flex justify-content-between align-items-center">
+        <div>
+          <span>${title}</span><br>
+          <small>${d.toLocaleString()}</small>
+        </div>
+        <button
+          class="btn btn-danger btn-sm delete-btn"
+          data-conversation-id="${conversationId}"
+        >
+          <i class="bi bi-trash"></i>
+        </button>
+      </div>
+    `;
+    convoItem.setAttribute("data-conversation-title", title);
+  } else {
+    // If the conversation doesn't exist in the list, add it
+    addConversationToList(conversationId, title);
+  }
+}
+
 /*************************************************
  *  DOC SCOPE & POPULATING SELECT
  *************************************************/
@@ -218,7 +266,12 @@ if (docScopeSelect) {
  *************************************************/
 function loadPersonalDocs() {
   return fetch("/api/documents")
-    .then((r) => r.json())
+    .then((response) => {
+      if (!response.ok) {
+        throw new Error(`HTTP error ${response.status}`);
+      }
+      return response.json();
+    })
     .then((data) => {
       if (data.error) {
         console.warn("Error fetching user docs:", data.error);
@@ -235,13 +288,24 @@ function loadPersonalDocs() {
 
 function loadGroupDocs() {
   return fetch("/api/groups")
-    .then((r) => r.json())
+    .then((response) => {
+      if (!response.ok) {
+        throw new Error(`HTTP error ${response.status}`);
+      }
+      return response.json();
+    })
     .then((groups) => {
       const activeGroup = groups.find((g) => g.isActive);
       if (activeGroup) {
         activeGroupName = activeGroup.name || "Active Group";
+        activeGroupId = activeGroup.id || null; // Set activeGroupId
         return fetch("/api/group_documents")
-          .then((r) => r.json())
+          .then((response) => {
+            if (!response.ok) {
+              throw new Error(`HTTP error ${response.status}`);
+            }
+            return response.json();
+          })
           .then((data) => {
             if (data.error) {
               console.warn("Error fetching group docs:", data.error);
@@ -256,6 +320,7 @@ function loadGroupDocs() {
           });
       } else {
         activeGroupName = "";
+        activeGroupId = null;
         groupDocs = [];
       }
     })
@@ -398,10 +463,10 @@ function appendMessage(sender, messageContent, modelName = null, messageId = nul
   let feedbackHtml = "";
 
   if (sender === "System") {
-    return;
-  }
-
-  if (sender === "safety") {
+    messageClass = "system-message"; // Ensure every sender has a class value
+    senderLabel = "System";
+    messageContentHtml = DOMPurify.sanitize(marked.parse(messageContent));
+  } else if (sender === "safety") {
     messageClass = "ai-message";
     senderLabel = "Content Safety";
     avatarAltText = "Content Safety Avatar";
@@ -424,6 +489,7 @@ function appendMessage(sender, messageContent, modelName = null, messageId = nul
       ? `AI <span style="color: #6c757d; font-size: 0.8em;">(${modelName})</span>`
       : "AI";
     avatarImg = "/static/images/ai-avatar.png";
+    avatarAltText = "AI Avatar";
 
     const imageHtml = `
       <img 
@@ -472,9 +538,18 @@ function appendMessage(sender, messageContent, modelName = null, messageId = nul
         ${filename}
       </a>
     `;
+  } else if (sender === "Error") {
+    messageClass = "error-message";
+    senderLabel = "Error";
+    messageContentHtml = DOMPurify.sanitize(marked.parse(messageContent));
   }
 
-  messageDiv.classList.add("message", messageClass);
+  // Add message class safely - fix for the DOMTokenList error
+  messageDiv.classList.add("message");
+  if (messageClass) {
+    messageDiv.classList.add(messageClass);
+  }
+
   messageDiv.innerHTML = `
     <div class="message-content ${
       sender === "You" || sender === "File" ? "flex-row-reverse" : ""
@@ -501,7 +576,18 @@ function appendMessage(sender, messageContent, modelName = null, messageId = nul
  *************************************************/
 function loadMessages(conversationId) {
   fetch(`/conversation/${conversationId}/messages`)
-    .then((response) => response.json())
+    .then((response) => {
+      if (!response.ok) {
+        throw new Error(`HTTP error ${response.status}`);
+      }
+      
+      const contentType = response.headers.get('content-type');
+      if (!contentType || !contentType.includes('application/json')) {
+        throw new TypeError(`Expected JSON but got ${contentType}`);
+      }
+      
+      return response.json();
+    })
     .then((data) => {
       const chatbox = document.getElementById("chatbox");
       if (!chatbox) return;
@@ -523,6 +609,7 @@ function loadMessages(conversationId) {
     })
     .catch((error) => {
       console.error("Error loading messages:", error);
+      showToast(`Error loading messages: ${error.message}`, "danger");
     });
 }
 
@@ -591,33 +678,37 @@ function deleteConversation(conversationId) {
       headers: { "Content-Type": "application/json" },
     })
       .then((response) => {
-        if (response.ok) {
-          const convoItem = document.querySelector(
-            `.conversation-item[data-conversation-id="${conversationId}"]`
-          );
-          if (convoItem) {
-            convoItem.remove();
-          }
+        if (!response.ok) {
+          return response.json().then(data => {
+            throw new Error(data.error || `HTTP error ${response.status}`);
+          });
+        }
+        return { success: true };
+      })
+      .then(() => {
+        const convoItem = document.querySelector(
+          `.conversation-item[data-conversation-id="${conversationId}"]`
+        );
+        if (convoItem) {
+          convoItem.remove();
+        }
 
-          if (currentConversationId === conversationId) {
-            currentConversationId = null;
-            const titleEl = document.getElementById("current-conversation-title");
-            if (titleEl) {
-              titleEl.textContent =
-                "Start typing to create a new conversation or select one on the left";
-            }
-            const chatbox = document.getElementById("chatbox");
-            if (chatbox) {
-              chatbox.innerHTML = "";
-            }
+        if (currentConversationId === conversationId) {
+          currentConversationId = null;
+          const titleEl = document.getElementById("current-conversation-title");
+          if (titleEl) {
+            titleEl.textContent =
+              "Start typing to create a new conversation or select one on the left";
           }
-        } else {
-          showToast("Failed to delete the conversation.", "danger");
+          const chatbox = document.getElementById("chatbox");
+          if (chatbox) {
+            chatbox.innerHTML = "";
+          }
         }
       })
       .catch((error) => {
         console.error("Error deleting conversation:", error);
-        showToast("Error deleting the conversation.", "danger");
+        showToast(`Error deleting the conversation: ${error.message}`, "danger");
       });
   }
 }
@@ -632,7 +723,14 @@ function fetchCitedText(citationId) {
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ citation_id: citationId }),
   })
-    .then((response) => response.json())
+    .then((response) => {
+      if (!response.ok) {
+        return response.json().then(data => {
+          throw new Error(data.error || `HTTP error ${response.status}`);
+        });
+      }
+      return response.json();
+    })
     .then((data) => {
       hideLoadingIndicator();
 
@@ -647,7 +745,7 @@ function fetchCitedText(citationId) {
     .catch((error) => {
       hideLoadingIndicator();
       console.error("Error fetching cited text:", error);
-      showToast("Error fetching cited text.", "danger");
+      showToast(`Error fetching cited text: ${error.message}`, "danger");
     });
 }
 
@@ -668,7 +766,7 @@ function showCitedTextPopup(citedText, fileName, pageNumber) {
             <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
           </div>
           <div class="modal-body">
-            <pre id="cited-text-content"></pre>
+            <div id="cited-text-content" class="document-formatted"></div>
           </div>
         </div>
       </div>
@@ -683,12 +781,127 @@ function showCitedTextPopup(citedText, fileName, pageNumber) {
 
   const citedTextContent = document.getElementById("cited-text-content");
   if (citedTextContent) {
-    citedTextContent.textContent = citedText;
+    // Format the text with improved paragraph detection
+    citedTextContent.innerHTML = formatDocumentText(citedText);
   }
 
   const modal = new bootstrap.Modal(modalContainer);
   modal.show();
 }
+
+function formatDocumentText(text) {
+  // Safety escape HTML characters
+  let safeText = text
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;');
+  
+  // Split into lines
+  const lines = safeText.split('\n');
+  let formattedHtml = '';
+  let inParagraph = false;
+  
+  lines.forEach((line, index) => {
+    // Trim the line
+    const trimmedLine = line.trim();
+    
+    // Skip empty lines
+    if (trimmedLine === '') {
+      if (inParagraph) {
+        formattedHtml += '</p>\n';
+        inParagraph = false;
+      }
+      return;
+    }
+    
+    // Check if line is likely a heading
+    const isHeading = /^(?:[A-Z\s0-9]+|[0-9]+\.\s+[A-Z])/.test(trimmedLine) && 
+                      trimmedLine.length < 100 &&
+                      !trimmedLine.includes(',');
+    
+    // Check if line is likely a new paragraph start
+    const isNewParagraph = !inParagraph || 
+                           /^(?:[A-Z*]|[0-9]+\.)/.test(trimmedLine) ||
+                           (index > 0 && lines[index-1].trim() === '');
+    
+    if (isHeading) {
+      // Close previous paragraph if needed
+      if (inParagraph) {
+        formattedHtml += '</p>\n';
+        inParagraph = false;
+      }
+      
+      // Add a heading with some spacing
+      formattedHtml += `<h4 class="document-heading">${trimmedLine}</h4>\n`;
+    } 
+    else {
+      // Regular paragraph content
+      if (isNewParagraph) {
+        // Close previous paragraph if needed
+        if (inParagraph) {
+          formattedHtml += '</p>\n';
+        }
+        
+        // Start new paragraph
+        formattedHtml += `<p class="document-paragraph">${trimmedLine}`;
+        inParagraph = true;
+      } 
+      else {
+        // Continue paragraph with space or line break
+        formattedHtml += ` ${trimmedLine}`;
+      }
+    }
+  });
+  
+  // Close final paragraph if needed
+  if (inParagraph) {
+    formattedHtml += '</p>\n';
+  }
+  
+  return formattedHtml;
+}
+
+function enhanceParagraphBreaks(text) {
+  // First, convert the text to HTML, preserving spaces and line breaks
+  let htmlText = text
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/\n/g, '<br>');
+  
+  // Look for paragraph breaks (double line breaks or more)
+  // and enhance them with additional spacing for better readability
+  htmlText = htmlText.replace(/(<br>)\s*(<br>)/g, '$1</p><p class="mt-3">');
+  
+  // Wrap the entire text in a paragraph
+  htmlText = '<p>' + htmlText + '</p>';
+  
+  return htmlText;
+}
+
+
+function formatCitedText(text) {
+  // Split text into paragraphs (empty lines as separators)
+  const paragraphs = text.split(/\n\s*\n/);
+  
+  // Format each paragraph with proper styling
+  const formattedParagraphs = paragraphs.map(p => {
+    // Clean up the paragraph text (remove excessive whitespace)
+    const cleanedText = p.trim().replace(/\s+/g, ' ');
+    
+    // Detect if the paragraph is a heading
+    const isHeading = cleanedText.toUpperCase() === cleanedText && cleanedText.length < 100;
+    
+    if (isHeading) {
+      return `<h5 class="mt-4 mb-2">${cleanedText}</h5>`;
+    } else {
+      return `<p class="mb-3">${cleanedText}</p>`;
+    }
+  });
+  
+  return formattedParagraphs.join('');
+}
+
 
 /*************************************************
  *  LOADING / HIDING INDICATORS
@@ -755,9 +968,15 @@ async function createNewConversation(callback) {
       headers: { "Content-Type": "application/json" },
       credentials: "same-origin"
     });
+    
     if (!response.ok) {
-      const errData = await response.json();
-      throw new Error(errData.error || "Failed to create conversation");
+      const contentType = response.headers.get('content-type');
+      if (contentType && contentType.includes('application/json')) {
+        const errData = await response.json();
+        throw new Error(errData.error || `HTTP error ${response.status}`);
+      } else {
+        throw new Error(`HTTP error ${response.status}`);
+      }
     }
 
     const data = await response.json();
@@ -783,7 +1002,7 @@ async function createNewConversation(callback) {
     } else {
       loadMessages(data.conversation_id);
     }
-  } catch (error) {
+  }  catch (error) {
     console.error("Error creating conversation:", error);
     showToast(`Failed to create a new conversation: ${error.message}`, "danger");
   }
@@ -823,8 +1042,8 @@ function actuallySendMessage(textVal) {
   const userInput = document.getElementById("user-input");
   appendMessage("You", textVal);
   userInput.value = "";
-  showLoadingIndicatorInChatbox();
-
+  
+  // Get settings for the request
   let hybridSearchEnabled = false;
   const sdbtn = document.getElementById("search-documents-btn");
   if (sdbtn && sdbtn.classList.contains("active")) {
@@ -839,9 +1058,6 @@ function actuallySendMessage(textVal) {
     }
   }
 
-  
-
-
   let bingSearchEnabled = false;
   const wbbtn = document.getElementById("search-web-btn");
   if (wbbtn && wbbtn.classList.contains("active")) {
@@ -853,101 +1069,256 @@ function actuallySendMessage(textVal) {
   if (igbtn && igbtn.classList.contains("active")) {
     imageGenEnabled = true;
   }
+  
+  // Get docScopeSelect value safely
+  const docScopeValue = docScopeSelect ? docScopeSelect.value : null;
+  
+  // Create payload with streaming enabled
+  const payload = {
+    message: textVal,
+    conversation_id: currentConversationId,
+    hybrid_search: hybridSearchEnabled,
+    selected_document_id: selectedDocumentId,
+    bing_search: bingSearchEnabled,
+    image_generation: imageGenEnabled,
+    doc_scope: docScopeValue,
+    active_group_id: activeGroupId || null,
+    streaming: true // Enable streaming by default
+  };
+
+  // Create empty message element for streaming content
+  const messageDiv = document.createElement("div");
+  messageDiv.classList.add("mb-2", "message", "ai-message");
+  messageDiv.innerHTML = `
+    <div class="message-content">
+      <img src="/static/images/ai-avatar.png" alt="AI Avatar" class="avatar">
+      <div class="message-bubble">
+        <div class="message-sender">AI <span style="color: #6c757d; font-size: 0.8em;">(streaming)</span></div>
+        <div class="message-text"></div>
+      </div>
+    </div>
+  `;
+  
+  // Add the message to the chatbox
+  const chatbox = document.getElementById("chatbox");
+  if (chatbox) {
+    chatbox.appendChild(messageDiv);
+    scrollChatToBottom();
+  }
+  
+  const messageTextElement = messageDiv.querySelector(".message-text");
+  const messageSenderElement = messageDiv.querySelector(".message-sender");
+  let fullContent = "";
+  let conversationId = currentConversationId;
+  let messageId = null;
+  let modelName = null;
 
   fetch("/api/chat", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      message: textVal,
-      conversation_id: currentConversationId,
-      hybrid_search: hybridSearchEnabled,
-      selected_document_id: selectedDocumentId,
-      bing_search: bingSearchEnabled,
-      image_generation: imageGenEnabled,
-      doc_scope: docScopeSelect.value,
-      active_group_id: activeGroupId
-    }),
+    body: JSON.stringify(payload),
   })
-    .then((response) => {
-      const cloned = response.clone();
-      return cloned.json().then((data) => ({
-        ok: response.ok,
-        status: response.status,
-        data,
-      }));
-    })
-    .then(({ ok, status, data }) => {
-      hideLoadingIndicatorInChatbox();
+    .then(response => {
+      if (!response.ok) {
+        // Handle error response
+        return response.json().then(data => {
+          return {
+            ok: false,
+            status: response.status,
+            data
+          };
+        }).catch(() => {
+          // If JSON parsing fails, return a generic error
+          return {
+            ok: false,
+            status: response.status,
+            data: { error: `HTTP error ${response.status}` }
+          };
+        });
+      }
+      
+      // Check if the response is a streaming response
+      const contentType = response.headers.get("Content-Type") || "";
+      
+      if (contentType.includes("text/event-stream")) {
+        // Handle streaming response
+        const reader = response.body.getReader();
+        const decoder = new TextDecoder();
+        let buffer = '';
+        
+        // Process the stream
+        function processStream() {
+          return reader.read().then(({ done, value }) => {
+            if (done) {
+              // Stream has ended
+              if (messageTextElement) {
+                // Apply citation parsing to the final content
+                let cleaned = fullContent.trim().replace(/\n{3,}/g, "\n\n");
+                cleaned = cleaned.replace(/(\bhttps?:\/\/\S+)(%5D|\])+/gi, (_, url) => url);
+                const withCitations = parseCitations(cleaned);
+                
+                // Update with final formatted content
+                messageTextElement.innerHTML = DOMPurify.sanitize(marked.parse(withCitations));
+                
+                // Add feedback icons
+                if (messageId) {
+                  const feedbackHtml = renderFeedbackIcons(messageId, conversationId);
+                  const messageBubble = messageDiv.querySelector(".message-bubble");
+                  if (messageBubble && feedbackHtml) {
+                    const feedbackContainer = document.createElement('div');
+                    feedbackContainer.innerHTML = feedbackHtml;
+                    messageBubble.appendChild(feedbackContainer.firstChild);
+                  }
+                }
 
-      if (!ok) {
-        if (status === 403) {
-          const categories = (data.triggered_categories || [])
-            .map((catObj) => `${catObj.category} (severity=${catObj.severity})`)
-            .join(", ");
-          const reasonMsg = Array.isArray(data.reason)
-            ? data.reason.join(", ")
-            : data.reason;
-
-          appendMessage(
-            "System",
-            `Your message was blocked by Content Safety.\n\n` +
-              `**Categories triggered**: ${categories}\n` +
-              `**Reason**: ${reasonMsg}`,
-            data.message_id
-          );
-        } else {
-          appendMessage(
-            "System",
-            `An error occurred: ${data.error || "Unknown error"}.`
-          );
+                // Update the AI label with model name if available
+                if (modelName && messageSenderElement) {
+                  messageSenderElement.innerHTML = `AI <span style="color: #6c757d; font-size: 0.8em;">(${modelName})</span>`;
+                }
+              }
+              return;
+            }
+            
+            // Decode the chunk and add to buffer
+            buffer += decoder.decode(value, { stream: true });
+            
+            // Process complete lines in the buffer
+            const lines = buffer.split('\n\n');
+            buffer = lines.pop() || '';  // Keep the last incomplete line in buffer
+            
+            for (const line of lines) {
+              if (line.trim() === '') continue;
+              
+              if (line.startsWith('data: ')) {
+                try {
+                  // Extract JSON payload by removing 'data: ' prefix
+                  const jsonStr = line.substring(6);
+                  const data = JSON.parse(jsonStr);
+                  
+                  // Handle different types of messages
+                  if (data.type === 'info') {
+                    // Store conversation and message IDs
+                    conversationId = data.conversation_id || conversationId;
+                    messageId = data.message_id || null;
+                    
+                    if (data.conversation_title) {
+                      const convTitleEl = document.getElementById("current-conversation-title");
+                      if (convTitleEl) {
+                        convTitleEl.textContent = data.conversation_title;
+                      }
+                      
+                      // Update the conversation in the list if it exists
+                      updateConversationInList(conversationId, data.conversation_title);
+                    }
+                  } 
+                  else if (data.type === 'chunk') {
+                    // Append content to the message
+                    if (messageTextElement && data.content) {
+                      fullContent += data.content;
+                      // Convert to markdown for display
+                      messageTextElement.innerHTML = DOMPurify.sanitize(marked.parse(fullContent));
+                      scrollChatToBottom();
+                    }
+                  } 
+                  else if (data.type === 'done') {
+                    // Streaming complete
+                    modelName = data.model_deployment_name || null;
+                  } 
+                  else if (data.type === 'error') {
+                    // Handle error
+                    if (messageTextElement) {
+                      messageTextElement.innerHTML = `<div class="error-message">Error: ${data.error}</div>`;
+                    }
+                  }
+                } catch (e) {
+                  console.error('Error parsing SSE data:', e, line);
+                }
+              }
+            }
+            
+            // Continue reading the stream
+            return processStream();
+          }).catch(error => {
+            console.error("Stream reading error:", error);
+            if (messageTextElement) {
+              messageTextElement.innerHTML += `<div class="error-message">Error: Stream interrupted</div>`;
+            }
+          });
         }
+        
+        return { isStream: true, processStream: processStream() };
       } else {
-        if (data.reply) {
-          appendMessage("AI", data.reply, data.model_deployment_name, data.message_id);
-        }
-        if (data.image_url) {
-          appendMessage("image", data.image_url, data.model_deployment_name, data.message_id);
-        }
-
-        if (data.conversation_id) {
-          currentConversationId = data.conversation_id;
-        }
-        if (data.conversation_title) {
-          const convTitleEl = document.getElementById("current-conversation-title");
-          if (convTitleEl) {
-            convTitleEl.textContent = data.conversation_title;
-          }
-          const convoItem = document.querySelector(
-            `.conversation-item[data-conversation-id="${currentConversationId}"]`
-          );
-          if (convoItem) {
-            const d = new Date();
-            convoItem.innerHTML = `
-              <div class="d-flex justify-content-between align-items-center">
-                <div>
-                  <span>${data.conversation_title}</span><br>
-                  <small>${d.toLocaleString()}</small>
-                </div>
-                <button
-                  class="btn btn-danger btn-sm delete-btn"
-                  data-conversation-id="${currentConversationId}"
-                >
-                  <i class="bi bi-trash"></i>
-                </button>
-              </div>
-            `;
-            convoItem.setAttribute(
-              "data-conversation-title",
-              data.conversation_title
-            );
-          }
-        }
+        // Not a streaming response, handle as regular JSON
+        return { isStream: false, json: response.json() };
       }
     })
-    .catch((error) => {
+    .then(result => {
+      if (result.isStream) {
+        // The stream is already being processed
+        return;
+      } else {
+        // Handle regular JSON response (fallback for non-streaming)
+        return result.json.then(data => {
+          // Remove the empty streaming message element
+          if (messageDiv && messageDiv.parentNode) {
+            messageDiv.parentNode.removeChild(messageDiv);
+          }
+          
+          if (data.ok === false) {
+            if (data.status === 403) {
+              const categories = (data.data.triggered_categories || [])
+                .map((catObj) => `${catObj.category} (severity=${catObj.severity})`)
+                .join(", ");
+              const reasonMsg = Array.isArray(data.data.reason)
+                ? data.data.reason.join(", ")
+                : data.data.reason || "Unknown reason";
+    
+              appendMessage(
+                "System",
+                `Your message was blocked by Content Safety.\n\n` +
+                  `**Categories triggered**: ${categories}\n` +
+                  `**Reason**: ${reasonMsg}`
+              );
+            } else {
+              appendMessage(
+                "System",
+                `An error occurred: ${data.data.error || "Unknown error"}.`
+              );
+            }
+          } else {
+            if (data.reply) {
+              appendMessage("AI", data.reply, data.model_deployment_name, data.message_id);
+            }
+            
+            if (data.image_url) {
+              appendMessage("image", data.image_url, data.model_deployment_name, data.message_id);
+            }
+            
+            if (data.conversation_id) {
+              currentConversationId = data.conversation_id;
+            }
+            
+            if (data.conversation_title) {
+              const convTitleEl = document.getElementById("current-conversation-title");
+              if (convTitleEl) {
+                convTitleEl.textContent = data.conversation_title;
+              }
+              
+              updateConversationInList(data.conversation_id, data.conversation_title);
+            }
+          }
+        });
+      }
+    })
+    .catch(error => {
       console.error("Error:", error);
-      hideLoadingIndicatorInChatbox();
-      appendMessage("Error", "Could not get a response.");
+      
+      // Remove the streaming message if it exists
+      if (messageDiv && messageDiv.parentNode) {
+        messageDiv.parentNode.removeChild(messageDiv);
+      }
+      
+      appendMessage("Error", "Could not get a response. Please try again.");
     });
 }
 
@@ -959,7 +1330,7 @@ if (sendBtn) {
   sendBtn.addEventListener("click", sendMessage);
 }
 
-const userInput = document.getElementById("user-input");
+// userInput is already defined at the top
 if (userInput) {
   userInput.addEventListener("keypress", function (e) {
     if (e.key === "Enter") {
@@ -989,7 +1360,10 @@ if (fileInputEl) {
 
     if (file) {
       fileBtn.classList.add("active");
-      fileBtn.querySelector(".file-btn-text").textContent = file.name;
+      const fileBtnText = fileBtn.querySelector(".file-btn-text");
+      if (fileBtnText) {
+        fileBtnText.textContent = file.name;
+      }
       uploadBtn.style.display = "block";
     } else {
       resetFileButton();
@@ -1005,7 +1379,10 @@ function resetFileButton() {
   const fileBtn = document.getElementById("choose-file-btn");
   if (fileBtn) {
     fileBtn.classList.remove("active");
-    fileBtn.querySelector(".file-btn-text").textContent = "";
+    const fileBtnText = fileBtn.querySelector(".file-btn-text");
+    if (fileBtnText) {
+      fileBtnText.textContent = "";
+    }
   }
   const uploadBtn = document.getElementById("upload-btn");
   if (uploadBtn) {
@@ -1045,15 +1422,22 @@ function uploadFileToConversation(file) {
     body: formData,
   })
     .then((response) => {
-      let clonedResponse = response.clone();
-      return response.json().then((data) => {
-        if (!response.ok) {
+      if (!response.ok) {
+        return response.json().then(data => {
           console.error("Upload failed:", data.error || "Unknown error");
           showToast("Error uploading file: " + (data.error || "Unknown error"), "danger");
           throw new Error(data.error || "Upload failed");
-        }
-        return data;
-      });
+        }).catch(error => {
+          if (error instanceof SyntaxError) {
+            // JSON parsing error
+            console.error("Upload failed: Invalid server response");
+            showToast("Error uploading file: Invalid server response", "danger");
+            throw new Error("Invalid server response");
+          }
+          throw error;
+        });
+      }
+      return response.json();
     })
     .then((data) => {
       if (data.conversation_id) {
@@ -1138,7 +1522,19 @@ function fetchFileContent(conversationId, fileId) {
       file_id: fileId,
     }),
   })
-    .then((response) => response.json())
+    .then((response) => {
+      if (!response.ok) {
+        return response.json().then(data => {
+          throw new Error(data.error || `HTTP error ${response.status}`);
+        }).catch(error => {
+          if (error instanceof SyntaxError) {
+            throw new Error(`HTTP error ${response.status}`);
+          }
+          throw error;
+        });
+      }
+      return response.json();
+    })
     .then((data) => {
       hideLoadingIndicator();
 
@@ -1147,13 +1543,13 @@ function fetchFileContent(conversationId, fileId) {
       } else if (data.error) {
         showToast(data.error, "danger");
       } else {
-        ashowToastlert("Unexpected response from server.", "danger");
+        showToast("Unexpected response from server.", "danger");
       }
     })
     .catch((error) => {
       hideLoadingIndicator();
       console.error("Error fetching file content:", error);
-      showToast("Error fetching file content.", "danger");
+      showToast(`Error fetching file content: ${error.message}`, "danger");
     });
 }
 
@@ -1236,26 +1632,29 @@ window.onload = function () {
     loadGroupPrompts()   // loads group prompts
   ])
     .then(() => {
-      // Once everything is loaded, handle URL params or any next steps
-      const searchDocsParam = getUrlParameter("search_documents") === "true";
-      const docScopeParam = getUrlParameter("doc_scope") || "";
-      const documentIdParam = getUrlParameter("document_id") || "";
-
+      // Auto-enable document search by default
       const searchDocsBtn = document.getElementById("search-documents-btn");
       const docScopeSel = document.getElementById("doc-scope-select");
       const docSelectEl = document.getElementById("document-select");
 
-      if (searchDocsParam && searchDocsBtn && docScopeSel && docSelectEl) {
+      if (searchDocsBtn && docScopeSel && docSelectEl) {
+        // Simulate clicking the search documents button
         searchDocsBtn.classList.add("active");
         docScopeSel.style.display = "inline-block";
         docSelectEl.style.display = "inline-block";
+        populateDocumentSelectScope();
+      }
 
-        if (docScopeParam) {
-          docScopeSel.value = docScopeParam;
-        }
+      // Continue handling URL params if needed
+      const searchDocsParam = getUrlParameter("search_documents") === "true";
+      const docScopeParam = getUrlParameter("doc_scope") || "";
+      const documentIdParam = getUrlParameter("document_id") || "";
+
+      if (searchDocsParam && docScopeParam) {
+        if (docScopeSel) docScopeSel.value = docScopeParam;
         populateDocumentSelectScope();
 
-        if (documentIdParam) {
+        if (documentIdParam && docSelectEl) {
           docSelectEl.value = documentIdParam;
         }
       }
@@ -1293,7 +1692,7 @@ function toBoolean(str) {
  *************************************************/
 function renderFeedbackIcons(messageId, conversationId) {
   
-  if (toBoolean(window.enableUserFeedback)) {
+  if (window.enableUserFeedback && toBoolean(window.enableUserFeedback)) {
     return `
       <div class="feedback-icons" data-ai-message-id="${messageId}">
         <i class="bi bi-hand-thumbs-up-fill text-muted me-3 feedback-btn" 
@@ -1320,8 +1719,20 @@ document.addEventListener("click", function (event) {
   if (!feedbackBtn) return;
 
   const feedbackType = feedbackBtn.getAttribute("data-feedback-type");
-  const messageId = feedbackBtn.closest(".feedback-icons").getAttribute("data-ai-message-id");
+  const feedbackIcons = feedbackBtn.closest(".feedback-icons");
+  
+  if (!feedbackIcons) {
+    console.error("Could not find parent .feedback-icons element");
+    return;
+  }
+  
+  const messageId = feedbackIcons.getAttribute("data-ai-message-id");
   const conversationId = feedbackBtn.getAttribute("data-conversation-id");
+
+  if (!messageId || !conversationId) {
+    console.error("Missing required attributes:", { messageId, conversationId });
+    return;
+  }
 
   // 1) VISUAL FEEDBACK: Add "clicked" class
   feedbackBtn.classList.add("clicked");
@@ -1336,11 +1747,24 @@ document.addEventListener("click", function (event) {
     }, 500);
   } else {
     // Thumbs down => open modal for optional reason
-    const modalEl = new bootstrap.Modal(document.getElementById("feedback-modal"));
-    document.getElementById("feedback-ai-response-id").value = messageId;
-    document.getElementById("feedback-conversation-id").value = conversationId;
-    document.getElementById("feedback-type").value = "negative";
-    document.getElementById("feedback-reason").value = "";
+    const feedbackModal = document.getElementById("feedback-modal");
+    if (!feedbackModal) {
+      console.error("Feedback modal not found");
+      return;
+    }
+    
+    const modalEl = new bootstrap.Modal(feedbackModal);
+    
+    const messageIdInput = document.getElementById("feedback-ai-response-id");
+    const conversationIdInput = document.getElementById("feedback-conversation-id");
+    const feedbackTypeInput = document.getElementById("feedback-type");
+    const reasonInput = document.getElementById("feedback-reason");
+    
+    if (messageIdInput) messageIdInput.value = messageId;
+    if (conversationIdInput) conversationIdInput.value = conversationId;
+    if (feedbackTypeInput) feedbackTypeInput.value = "negative";
+    if (reasonInput) reasonInput.value = "";
+    
     modalEl.show();
   }
 });
@@ -1350,19 +1774,25 @@ const feedbackForm = document.getElementById("feedback-form");
 if (feedbackForm) {
   feedbackForm.addEventListener("submit", (e) => {
     e.preventDefault();
-    const messageId = document.getElementById("feedback-ai-response-id").value;
-    const conversationId = document.getElementById("feedback-conversation-id").value;
-    const feedbackType = document.getElementById("feedback-type").value;
-    const reason = document.getElementById("feedback-reason").value.trim();
+    const messageId = document.getElementById("feedback-ai-response-id")?.value;
+    const conversationId = document.getElementById("feedback-conversation-id")?.value;
+    const feedbackType = document.getElementById("feedback-type")?.value;
+    const reason = document.getElementById("feedback-reason")?.value?.trim() || "";
+
+    if (!messageId || !conversationId || !feedbackType) {
+      console.error("Missing required feedback fields");
+      return;
+    }
 
     // Submit feedback
     submitFeedback(messageId, conversationId, feedbackType, reason);
 
     // Hide modal
-    const modalEl = bootstrap.Modal.getInstance(
-      document.getElementById("feedback-modal")
-    );
-    if (modalEl) modalEl.hide();
+    const feedbackModal = document.getElementById("feedback-modal");
+    if (feedbackModal) {
+      const modalEl = bootstrap.Modal.getInstance(feedbackModal);
+      if (modalEl) modalEl.hide();
+    }
   });
 }
 
@@ -1377,19 +1807,30 @@ function submitFeedback(messageId, conversationId, feedbackType, reason) {
       reason
     }),
   })
-    .then((resp) => resp.json())
+    .then((resp) => {
+      if (!resp.ok) {
+        return resp.json().then(data => {
+          throw new Error(data.error || `HTTP error ${resp.status}`);
+        }).catch(error => {
+          if (error instanceof SyntaxError) {
+            throw new Error(`HTTP error ${resp.status}`);
+          }
+          throw error;
+        });
+      }
+      return resp.json();
+    })
     .then((data) => {
       if (data.success) {
         // Optionally highlight the icons or show a "thank you" message
         console.log("Feedback submitted:", data);
       } else {
-        console.error("Feedback error:", data.error || data);
-        showToast("Error submitting feedback: " + (data.error || "Unknown error."), "danger");
+        throw new Error(data.error || "Unknown error");
       }
     })
     .catch((err) => {
       console.error("Error sending feedback:", err);
-      showToast("Error sending feedback.", "danger");
+      showToast(`Error sending feedback: ${err.message}`, "danger");
     });
 }
 
@@ -1411,6 +1852,8 @@ function showToast(message, variant = "danger") {
   container.insertAdjacentHTML("beforeend", toastHtml);
 
   const toastEl = document.getElementById(id);
-  const bsToast = new bootstrap.Toast(toastEl, { delay: 5000 });
-  bsToast.show();
+  if (toastEl) {
+    const bsToast = new bootstrap.Toast(toastEl, { delay: 5000 });
+    bsToast.show();
+  }
 }

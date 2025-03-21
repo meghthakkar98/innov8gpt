@@ -24,6 +24,7 @@ def register_route_backend_chats(app):
         selected_document_id = data.get('selected_document_id')
         bing_search_enabled = data.get('bing_search')
         image_gen_enabled = data.get('image_generation')
+        streaming_enabled = data.get('streaming', True)  # Default to streaming
         gpt_model = ""
         image_gen_model = ""
         document_scope = data.get('doc_scope')
@@ -34,6 +35,8 @@ def register_route_backend_chats(app):
             hybrid_search_enabled = hybrid_search_enabled.lower() == 'true'
         if isinstance(bing_search_enabled, str):
             bing_search_enabled = bing_search_enabled.lower() == 'true'
+        if isinstance(streaming_enabled, str):
+            streaming_enabled = streaming_enabled.lower() == 'true'
 
         # GPT & Image generation APIM or direct
         enable_gpt_apim = settings.get('enable_gpt_apim', False)
@@ -337,7 +340,7 @@ def register_route_backend_chats(app):
                 return jsonify({'error': f'Image generation failed: {str(e)}'}), 500
 
         # ---------------------------------------------------------------------
-        # 5) GPT logic
+        # 5) GPT logic with streaming support
         # ---------------------------------------------------------------------
         conversation_history_limit = settings.get('conversation_history_limit', 10)
         conversation_history = conversation_item['messages'][-conversation_history_limit:]
@@ -395,32 +398,91 @@ def register_route_backend_chats(app):
                     selected_gpt_model = gpt_model_obj['selected'][0]
                     gpt_model = selected_gpt_model['deploymentName']
 
-        try:
-            response = gpt_client.chat.completions.create(
-                model=gpt_model,
-                messages=conversation_history_for_api
-            )
-            ai_message = response.choices[0].message.content
-        except Exception as e:
-            print(str(e))
-            return jsonify({'error': f'Error generating model response: {str(e)}'}), 500
-
-        # 6) Save GPT response
+        # Generate a message ID now so it's consistent for both streaming and non-streaming
         assistant_message_id = f"{conversation_id}_assistant_{int(time.time())}_{random.randint(1000,9999)}"
-        conversation_item['messages'].append({
-            'role': 'assistant',
-            'content': ai_message,
-            'model_deployment_name': gpt_model,
-            'message_id': assistant_message_id
-        })
-        conversation_item['last_updated'] = datetime.utcnow().isoformat()
-        container.upsert_item(body=conversation_item)
+        
+        # Handle streaming vs non-streaming based on parameter
+        if streaming_enabled:
+            # Streaming response function
+            def generate_streaming_response():
+                full_response = ""
+                
+                try:
+                    # Send the conversation_id and message_id first
+                    yield f"data: {json.dumps({'conversation_id': conversation_id, 'message_id': assistant_message_id, 'conversation_title': conversation_item['title'], 'type': 'info'})}\n\n"
+                    
+                    # Request a streaming response from the model
+                    stream = gpt_client.chat.completions.create(
+                        model=gpt_model,
+                        messages=conversation_history_for_api,
+                        stream=True  # Enable streaming
+                    )
+                    
+                    # Stream each chunk as it arrives
+                    for chunk in stream:
+                        if chunk.choices and chunk.choices[0].delta.content:
+                            content = chunk.choices[0].delta.content
+                            full_response += content
+                            
+                            # Send the chunk to the client
+                            yield f"data: {json.dumps({'content': content, 'type': 'chunk'})}\n\n"
+                    
+                    # Save the complete response to the database
+                    conversation_item['messages'].append({
+                        'role': 'assistant',
+                        'content': full_response,
+                        'model_deployment_name': gpt_model,
+                        'message_id': assistant_message_id
+                    })
+                    conversation_item['last_updated'] = datetime.utcnow().isoformat()
+                    container.upsert_item(body=conversation_item)
+                    
+                    # Signal that the streaming is complete
+                    yield f"data: {json.dumps({'type': 'done', 'model_deployment_name': gpt_model})}\n\n"
+                    
+                except Exception as e:
+                    print(f"Streaming error: {str(e)}")
+                    error_message = f"Error generating model response: {str(e)}"
+                    yield f"data: {json.dumps({'error': error_message, 'type': 'error'})}\n\n"
+            
+            # Return a streaming response
+            return Response(
+                generate_streaming_response(),
+                mimetype='text/event-stream',
+                headers={
+                    'Cache-Control': 'no-cache',
+                    'Connection': 'keep-alive',
+                    'X-Accel-Buffering': 'no'  # Important for nginx
+                }
+            )
+        
+        else:
+            # Non-streaming (original) implementation
+            try:
+                response = gpt_client.chat.completions.create(
+                    model=gpt_model,
+                    messages=conversation_history_for_api
+                )
+                ai_message = response.choices[0].message.content
+            except Exception as e:
+                print(str(e))
+                return jsonify({'error': f'Error generating model response: {str(e)}'}), 500
 
-        # 7) Return final success
-        return jsonify({
-            'reply': ai_message,
-            'conversation_id': conversation_id,
-            'conversation_title': conversation_item['title'],
-            'model_deployment_name': gpt_model,
-            'message_id': assistant_message_id
-        }), 200
+            # Save GPT response
+            conversation_item['messages'].append({
+                'role': 'assistant',
+                'content': ai_message,
+                'model_deployment_name': gpt_model,
+                'message_id': assistant_message_id
+            })
+            conversation_item['last_updated'] = datetime.utcnow().isoformat()
+            container.upsert_item(body=conversation_item)
+
+            # Return final success
+            return jsonify({
+                'reply': ai_message,
+                'conversation_id': conversation_id,
+                'conversation_title': conversation_item['title'],
+                'model_deployment_name': gpt_model,
+                'message_id': assistant_message_id
+            }), 200

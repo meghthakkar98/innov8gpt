@@ -13,8 +13,11 @@ import random
 import base64
 import markdown2
 import re
+import PyPDF2
 
+from PyPDF2 import PdfReader, PdfWriter
 from flask import Flask, request, jsonify, render_template, redirect, url_for, session, send_from_directory, send_file, Markup
+from flask import Response
 from werkzeug.utils import secure_filename
 from datetime import datetime, timezone
 from functools import wraps
@@ -25,6 +28,7 @@ from threading import Thread
 from openai import AzureOpenAI, RateLimitError
 from cryptography.fernet import Fernet, InvalidToken
 from urllib.parse import quote
+from text_splitter import Page, SplitPage, SentenceTextSplitter
 
 from azure.cosmos import CosmosClient, PartitionKey, exceptions
 from azure.cosmos.exceptions import CosmosResourceNotFoundError

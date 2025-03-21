@@ -398,7 +398,7 @@ def _test_azure_doc_intelligence_connection(payload):
             break
         if time.time() - start_time > max_wait_time:
             raise TimeoutError("Document analysis took too long.")
-        time.sleep(30)
+        time.sleep(5)
 
     if status == "succeeded":
         return jsonify({'message': 'Azure document intelligence connection successful'}), 200

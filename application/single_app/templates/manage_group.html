@@ -7,7 +7,7 @@
 {% block content %}
 
 <div class="container">
-  <h2>Manage Group</h2>
+  <h2>Manage Channel</h2>
   <div id="groupInfoContainer" class="mb-3">
     <!-- Group name, description, etc. loaded via JS -->
   </div>
@@ -21,13 +21,13 @@
     </button>
     <!-- Delete Group Button -->
     <button class="btn btn-danger btn-sm" id="deleteGroupBtn">
-      Delete Group
+      Delete Channel
     </button>
   </div>
 
   <!-- If user is Owner, show update form -->
   <div id="editGroupContainer" class="mb-3" style="display: none">
-    <h5>Edit Group</h5>
+    <h5>Edit Channel</h5>
     <form id="editGroupForm">
       <div class="mb-2">
         <label for="editGroupName" class="form-label">Group Name</label>
@@ -44,7 +44,7 @@
   <!-- If user is NOT owner, show “Leave Group” button -->
   <div id="leaveGroupContainer" class="mb-3" style="display: none">
     <button class="btn btn-danger btn-sm" id="leaveGroupBtn">
-      Leave Group
+      Leave Channel
     </button>
   </div>
 

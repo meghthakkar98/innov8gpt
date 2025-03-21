@@ -10,7 +10,7 @@
 
 {% block content %}
 <div class="container">
-  <h2>Group Workspace</h2>
+  <h2>Channels Workspace</h2>
   <h3 id="active-group-name" style="display:none"></h3>
 
   <!-- Group Selector and Role Display (applies to both tabs) -->
@@ -19,13 +19,13 @@
       <select class="form-select" id="group-select"></select>
     </div>
     <div class="col-sm-4">
-      <button class="btn btn-primary" id="btn-change-group">Change Active Group</button>
-      <button class="btn btn-secondary" id="btn-my-groups">My Groups</button>
+      <button class="btn btn-primary" id="btn-change-group">Change Active Channels</button>
+      <button class="btn btn-secondary" id="btn-my-groups">My Channels</button>
     </div>
   </div>
 
   <div class="alert alert-info" id="user-role-display" style="display: none">
-    Your role in this group: <span id="user-role"></span>
+    Your role in this Channels: <span id="user-role"></span>
   </div>
 
   <!-- Nav Tabs -->
@@ -41,7 +41,7 @@
         aria-controls="documents-tab"
         aria-selected="true"
       >
-        Group Documents
+      Channels Documents
       </button>
     </li>
     <li class="nav-item" role="presentation">
@@ -55,7 +55,7 @@
         aria-controls="prompts-tab"
         aria-selected="false"
       >
-        Group Prompts
+      Channels Prompts
       </button>
     </li>
   </ul>
@@ -70,7 +70,7 @@
       aria-labelledby="documents-tab-btn"
     >
       <div class="card p-3 my-3">
-        <h5>Group Documents</h5>
+        <h5>Channels Documents</h5>
 
         <!-- Document Upload (only if role = Owner/Admin/DocumentManager) -->
         <div class="mb-3" id="upload-section" style="display: none">
@@ -105,7 +105,7 @@
       aria-labelledby="prompts-tab-btn"
     >
       <div class="card p-3 my-3">
-        <h5>Group Prompts</h5>
+        <h5>Channels Prompts</h5>
         <div
           id="group-prompts-role-warning"
           class="alert alert-warning"
@@ -169,7 +169,7 @@
     <form id="group-prompt-form">
       <div class="modal-content">
         <div class="modal-header">
-          <h5 class="modal-title" id="groupPromptModalLabel">Create Group Prompt</h5>
+          <h5 class="modal-title" id="groupPromptModalLabel">Create Channels Prompt</h5>
           <button
             type="button"
             class="btn-close"

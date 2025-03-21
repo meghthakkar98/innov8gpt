@@ -29,7 +29,7 @@ def extract_content_with_azure_di(file_path):
                 break
             if time.time() - start_time > max_wait_time:
                 raise TimeoutError("Document analysis took too long.")
-            time.sleep(30)
+            time.sleep(5)
 
         result = poller.result()
         extracted_content = ""
