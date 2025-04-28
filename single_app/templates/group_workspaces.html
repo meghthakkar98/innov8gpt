@@ -1,0 +1,1476 @@
+<!-- Updated Channel Management tab without Active Workspace buttons -->
+{% extends "base.html" %}
+{% block title %}
+  Channel Workspace - {{ app_settings.app_title }}
+{% endblock %}
+
+{% block head %}
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/simplemde/dist/simplemde.min.css">
+{% endblock %}
+
+{% block content %}
+<div class="container">
+  <!-- Main Nav Tabs (MOVED TO TOP) -->
+  <ul class="nav nav-tabs" id="mainWorkspaceTab" role="tablist">
+    <li class="nav-item" role="presentation">
+      <button
+        class="nav-link active"
+        id="channels-tab-btn"
+        data-bs-toggle="tab"
+        data-bs-target="#channels-tab"
+        type="button"
+        role="tab"
+        aria-controls="channels-tab"
+        aria-selected="true"
+      >
+      Channels
+      </button>
+    </li>
+    <li class="nav-item" role="presentation">
+      <button
+        class="nav-link"
+        id="management-tab-btn"
+        data-bs-toggle="tab"
+        data-bs-target="#management-tab"
+        type="button"
+        role="tab"
+        aria-controls="management-tab"
+        aria-selected="false"
+      >
+      Channel Management
+      </button>
+    </li>
+  </ul>
+
+  <h2 style="margin-top: 2.5%;">Channels Workspace</h2>
+  <h3 id="active-group-name" style="display:none"></h3>
+
+  <!-- Group Selector and Role Display (applies to both tabs) -->
+  <div class="row mb-3">
+    <div class="col-sm-6">
+      <select class="form-select" id="group-select"></select>
+    </div>
+    <!-- Change Active Group button removed, using dropdown change event instead -->
+  </div>
+
+  <div class="alert alert-info" id="user-role-display" style="display: none">
+    Your role in this Channels: <span id="user-role"></span>
+  </div>
+
+  <!-- Main Tab Content -->
+  <div class="tab-content" id="mainWorkspaceTabContent">
+    <!-- ============= CHANNELS TAB (CONTAINS NESTED TABS) ============= -->
+    <div
+      class="tab-pane fade show active"
+      id="channels-tab"
+      role="tabpanel"
+      aria-labelledby="channels-tab-btn"
+    >
+      <!-- Nested Nav Tabs -->
+      <ul class="nav nav-tabs mt-3" id="channelsSubTab" role="tablist">
+        <li class="nav-item" role="presentation">
+          <button
+            class="nav-link active"
+            id="documents-tab-btn"
+            data-bs-toggle="tab"
+            data-bs-target="#documents-tab"
+            type="button"
+            role="tab"
+            aria-controls="documents-tab"
+            aria-selected="true"
+          >
+          Channels Documents
+          </button>
+        </li>
+        <li class="nav-item" role="presentation">
+          <button
+            class="nav-link"
+            id="prompts-tab-btn"
+            data-bs-toggle="tab"
+            data-bs-target="#prompts-tab"
+            type="button"
+            role="tab"
+            aria-controls="prompts-tab"
+            aria-selected="false"
+          >
+          Channels Prompts
+          </button>
+        </li>
+      </ul>
+
+      <!-- Nested Tab Panes -->
+      <div class="tab-content" id="channelsSubTabContent">
+        <!-- ============= GROUP DOCUMENTS TAB ============= -->
+        <div
+          class="tab-pane fade show active"
+          id="documents-tab"
+          role="tabpanel"
+          aria-labelledby="documents-tab-btn"
+        >
+          <div class="card p-3 my-3">
+            <h5>Channels Documents</h5>
+
+            <!-- Document Upload (only if role = Owner/Admin/DocumentManager) -->
+            <div class="mb-3" id="upload-section" style="display: none">
+              <label for="file-input" class="form-label">Upload Document:</label>
+              <input type="file" id="file-input" />
+              <button id="upload-btn" class="btn btn-primary">Upload Document</button>
+            </div>
+
+            <!-- Documents List -->
+            <table class="table table-striped" id="group-documents-table">
+              <thead>
+                <tr>
+                  <th>File Name</th>
+                  <th>Upload Date</th>
+                  <th>Version</th>
+                  <th>Chunk Count</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr><td colspan="5" class="text-center">Loading documents...</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- ============= GROUP PROMPTS TAB ============= -->
+        <div
+          class="tab-pane fade"
+          id="prompts-tab"
+          role="tabpanel"
+          aria-labelledby="prompts-tab-btn"
+        >
+          <div class="card p-3 my-3">
+            <h5>Channels Prompts</h5>
+            <div
+              id="group-prompts-role-warning"
+              class="alert alert-warning"
+              style="display:none;"
+            >
+              You do not have permission to create/update/delete group prompts in this group.
+            </div>
+            <div
+              class="mb-3"
+              id="create-group-prompt-section"
+              style="display:none;"
+            >
+              <button id="create-group-prompt-btn" class="btn btn-success">New Prompt</button>
+            </div>
+
+            <table class="table table-striped" id="group-prompts-table">
+              <thead>
+                <tr>
+                  <th>Prompt Name</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr><td colspan="2" class="text-center">Loading prompts...</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ============= CHANNEL MANAGEMENT TAB ============= -->
+    <div
+      class="tab-pane fade"
+      id="management-tab"
+      role="tabpanel"
+      aria-labelledby="management-tab-btn"
+    >
+      <div class="card p-3 my-3">
+        <h5>My Channels</h5>
+
+        <!-- Create Group Button trigger modal -->
+        <button
+          type="button"
+          class="btn btn-success mb-3"
+          data-bs-toggle="modal"
+          data-bs-target="#createGroupModal"
+          id="createGroupBtn"
+        >
+          Create New Channel
+        </button>
+
+        <!-- Find Group Button trigger modal -->
+        <button
+          type="button"
+          class="btn btn-info mb-3"
+          data-bs-toggle="modal"
+          data-bs-target="#findGroupModal"
+        >
+          Find Channel
+        </button>
+
+        <div class="mb-3">
+          <!-- Search form -->
+          <form class="d-flex" id="searchGroupsForm">
+            <input
+              class="form-control me-2"
+              type="search"
+              placeholder="Search my groups..."
+              aria-label="Search"
+              name="searchQuery"
+              id="searchQuery"
+            />
+            <button class="btn btn-outline-primary" type="submit">Search</button>
+          </form>
+        </div>
+
+        <!-- Group List Section -->
+        <div id="groupsSection">
+          <!-- This will be updated dynamically via JavaScript -->
+          <p>Loading Channels...</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Loading Modal -->
+<div
+  class="modal fade"
+  id="loadingModal"
+  tabindex="-1"
+  aria-labelledby="loadingModalLabel"
+  aria-hidden="true"
+>
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content text-center">
+      <div class="modal-body">
+        <div class="spinner-border text-primary" role="status">
+          <span class="visually-hidden">Loading...</span>
+        </div>
+        <p class="mt-3">Uploading your document, please wait...</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Modal for Group Prompt Create/Edit -->
+<div
+  class="modal fade"
+  id="groupPromptModal"
+  tabindex="-1"
+  aria-hidden="true"
+>
+  <!-- Use modal-xl and ~80% width to match the personal workspace styling -->
+  <div class="modal-dialog modal-xl" style="max-width: 80%;">
+    <form id="group-prompt-form">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title" id="groupPromptModalLabel">Create Channels Prompt</h5>
+          <button
+            type="button"
+            class="btn-close"
+            data-bs-dismiss="modal"
+            aria-label="Close"
+          ></button>
+        </div>
+        <div class="modal-body">
+          <input type="hidden" id="group-prompt-id" />
+          <div class="mb-3">
+            <label for="group-prompt-name" class="form-label">Prompt Name</label>
+            <input
+              type="text"
+              class="form-control"
+              id="group-prompt-name"
+              required
+            />
+          </div>
+          <div class="mb-3">
+            <label for="group-prompt-content" class="form-label">Prompt Content</label>
+            <!-- We'll attach SimpleMDE to this textarea -->
+            <textarea
+              class="form-control"
+              id="group-prompt-content"
+              name="group_prompt_content"
+              rows="10"
+            ></textarea>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button id="group-prompt-save-btn" type="submit" class="btn btn-primary">
+            Save Prompt
+          </button>
+        </div>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- Create Group Modal -->
+<div
+  class="modal fade"
+  id="createGroupModal"
+  tabindex="-1"
+  aria-labelledby="createGroupModalLabel"
+  aria-hidden="true"
+>
+  <div class="modal-dialog">
+    <form id="createGroupForm">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title" id="createGroupModalLabel">
+            Create a New Channel
+          </h5>
+          <button
+            type="button"
+            class="btn-close"
+            data-bs-dismiss="modal"
+            aria-label="Close"
+          ></button>
+        </div>
+        <div class="modal-body">
+          <div class="mb-3">
+            <label for="groupName" class="form-label">Channel Name</label>
+            <input type="text" class="form-control" id="groupName" required />
+          </div>
+          <div class="mb-3">
+            <label for="groupDescription" class="form-label">Description</label>
+            <textarea class="form-control" id="groupDescription"></textarea>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button
+            type="button"
+            class="btn btn-secondary"
+            data-bs-dismiss="modal"
+          >
+            Cancel
+          </button>
+          <button type="submit" class="btn btn-primary">Create</button>
+        </div>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- Find Group Modal -->
+<div
+  class="modal fade"
+  id="findGroupModal"
+  tabindex="-1"
+  aria-labelledby="findGroupModalLabel"
+  aria-hidden="true"
+>
+  <div class="modal-dialog modal-lg">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="findGroupModalLabel">
+          Find a Channel to Join
+        </h5>
+        <button
+          type="button"
+          class="btn-close"
+          data-bs-dismiss="modal"
+          aria-label="Close"
+        ></button>
+      </div>
+      <div class="modal-body">
+        <!-- Search bar -->
+        <div class="input-group mb-2">
+          <input
+            type="text"
+            class="form-control"
+            id="globalGroupSearchInput"
+            placeholder="Search for a group..."
+          />
+          <button
+            class="btn btn-outline-secondary"
+            type="button"
+            id="globalGroupSearchBtn"
+          >
+            Search
+          </button>
+        </div>
+
+        <!-- Results Table -->
+        <div class="table-responsive">
+          <table class="table table-hover" id="globalGroupResultsTable">
+            <thead>
+              <tr>
+                <th>Name</th>
+                <th>Description</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              <!-- Populated by JavaScript -->
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+          Close
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<!-- SimpleMDE CSS/JS for Markdown editing -->
+<script src="https://cdn.jsdelivr.net/npm/simplemde/dist/simplemde.min.js"></script>
+
+<script>
+  let userRoleInActiveGroup = null;
+  let userGroups = [];
+  let activeGroupId = null;
+
+  // Bootstrap modals
+  let groupPromptModal = null;
+  let loadingModal = null;
+
+  // Reference to the group prompt textarea and SimpleMDE instance
+  const groupPromptContentEl = document.getElementById("group-prompt-content");
+  let groupSimplemde = null;
+
+  // Initialize SimpleMDE for group prompts after DOM is ready
+  document.addEventListener("DOMContentLoaded", () => {
+    // Initialize Bootstrap modals
+    groupPromptModal = new bootstrap.Modal(document.getElementById("groupPromptModal"));
+    loadingModal = new bootstrap.Modal(document.getElementById("loadingModal"));
+    
+    // Initialize SimpleMDE
+    if (groupPromptContentEl) {
+      groupSimplemde = new SimpleMDE({
+        element: groupPromptContentEl,
+        spellChecker: false // or true, depending on preference
+      });
+    }
+
+    // 1) Fetch user groups (sets activeGroupId, userRoleInActiveGroup, etc.)
+    fetchUserGroups().then(() => {
+      if (activeGroupId) {
+        // 2) Fetch group documents only if there's an active group
+        fetchGroupDocuments();
+        // 3) Fetch group prompts
+        fetchGroupPrompts();
+        // 4) Update the group prompts UI based on user role
+        updateGroupPromptsRoleUI();
+      } else {
+        // No active group - show appropriate messages
+        const docTable = document.querySelector("#group-documents-table tbody");
+        if (docTable) {
+          docTable.innerHTML = "<tr><td colspan='5' class='text-center'>No active channel selected</td></tr>";
+        }
+        
+        const promptTable = document.querySelector("#group-prompts-table tbody");
+        if (promptTable) {
+          promptTable.innerHTML = "<tr><td colspan='2' class='text-center'>No active channel selected</td></tr>";
+        }
+      }
+      // 5) Load the management tab data
+      loadManagementTabData();
+    });
+
+    // Add change event listener to the group selection dropdown for automatic selection
+    const groupSelect = document.getElementById("group-select");
+    if (groupSelect) {
+      groupSelect.addEventListener("change", function() {
+        const newGroupId = this.value;
+        if (newGroupId) {
+          setActiveGroup(newGroupId)
+            .then(() => fetchUserGroups())
+            .then(() => {
+              fetchGroupDocuments();
+              fetchGroupPrompts();
+              updateGroupPromptsRoleUI();
+            })
+            .catch((err) => console.error(err));
+        }
+      });
+    }
+
+    // Upload Document
+    const uploadBtn = document.getElementById("upload-btn");
+    if (uploadBtn) {
+      uploadBtn.addEventListener("click", onUploadClick);
+    }
+
+    // Create new group prompt
+    const createGroupPromptBtn = document.getElementById("create-group-prompt-btn");
+    if (createGroupPromptBtn) {
+      createGroupPromptBtn.addEventListener("click", () => {
+        const modalLabelEl = document.getElementById("groupPromptModalLabel");
+        const promptIdEl = document.getElementById("group-prompt-id");
+        const promptNameEl = document.getElementById("group-prompt-name");
+        
+        if (modalLabelEl) modalLabelEl.textContent = "Create Group Prompt";
+        if (promptIdEl) promptIdEl.value = "";
+        if (promptNameEl) promptNameEl.value = "";
+        
+        // Reset SimpleMDE content
+        if (groupSimplemde) {
+          groupSimplemde.value("");
+        }
+        
+        groupPromptModal.show();
+      });
+    }
+
+    // Save group prompt
+    const groupPromptForm = document.getElementById("group-prompt-form");
+    if (groupPromptForm) {
+      groupPromptForm.addEventListener("submit", (e) => {
+        e.preventDefault();
+        const promptIdEl = document.getElementById("group-prompt-id");
+        const promptNameEl = document.getElementById("group-prompt-name");
+        const promptContentEl = document.getElementById("group-prompt-content");
+        
+        if (!promptNameEl || !promptContentEl) {
+          console.error("Required form elements not found");
+          return;
+        }
+        
+        // Update the hidden textarea to the SimpleMDE content if SimpleMDE is available
+        if (groupSimplemde) {
+          promptContentEl.value = groupSimplemde.value();
+        }
+
+        const payload = {
+          name: promptNameEl.value,
+          content: promptContentEl.value
+        };
+
+        const promptId = promptIdEl ? promptIdEl.value : "";
+        
+        if (!promptId) {
+          // CREATE
+          fetch("/api/group_prompts", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(payload)
+          })
+            .then((r) => r.json())
+            .then((data) => {
+              if (data.error) {
+                alert("Error creating group prompt: " + data.error);
+                return;
+              }
+              groupPromptModal.hide();
+              fetchGroupPrompts();
+            })
+            .catch((err) => console.error(err));
+        } else {
+          // UPDATE
+          fetch("/api/group_prompts/" + promptId, {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(payload)
+          })
+            .then((r) => r.json())
+            .then((data) => {
+              if (data.error) {
+                alert("Error updating group prompt: " + data.error);
+                return;
+              }
+              groupPromptModal.hide();
+              fetchGroupPrompts();
+            })
+            .catch((err) => console.error(err));
+        }
+      });
+    }
+
+    // Setup Channel Management Tab functionality
+    setupChannelManagement();
+  });
+
+  /* ===================== GROUPS ===================== */
+  function fetchUserGroups() {
+    return fetch("/api/groups")
+      .then((r) => {
+        if (!r.ok) {
+          throw new Error(`HTTP error ${r.status}: ${r.statusText}`);
+        }
+        return r.json();
+      })
+      .then((data) => {
+        userGroups = data;
+        const sel = document.getElementById("group-select");
+        if (!sel) {
+          console.error("Group select element not found");
+          return;
+        }
+        
+        sel.innerHTML = "";
+        const activeGroupNameEl = document.getElementById("active-group-name");
+
+        userGroups.forEach((g) => {
+          const opt = document.createElement("option");
+          opt.value = g.id;
+          opt.text = g.name;
+
+          if (g.isActive) {
+            opt.selected = true;
+            activeGroupId = g.id;
+            userRoleInActiveGroup = g.userRole;
+            window.activeGroupName = g.name;
+            if (activeGroupNameEl) {
+              activeGroupNameEl.textContent = g.name;
+              activeGroupNameEl.style.display = "block";
+            }
+          }
+          sel.appendChild(opt);
+        });
+
+        updateRoleDisplay();
+      })
+      .catch((err) => {
+        console.error("Error fetching groups", err);
+        const sel = document.getElementById("group-select");
+        if (sel) {
+          sel.innerHTML = `<option value="">Error loading groups</option>`;
+        }
+      });
+  }
+
+  function setActiveGroup(groupId) {
+    if (!groupId) {
+      return Promise.reject(new Error("No group ID provided"));
+    }
+    
+    return fetch("/api/groups/setActive", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ groupId }),
+    })
+      .then((r) => {
+        if (!r.ok) {
+          throw new Error(`HTTP error ${r.status}: ${r.statusText}`);
+        }
+        return r.json();
+      })
+      .then((data) => {
+        if (data.error) {
+          alert("Error setting active group: " + data.error);
+          throw new Error(data.error);
+        }
+      });
+  }
+
+  function updateRoleDisplay() {
+    const roleDisplayEl = document.getElementById("user-role-display");
+    const userRoleEl = document.getElementById("user-role");
+    const uploadSectionEl = document.getElementById("upload-section");
+    
+    if (roleDisplayEl) {
+      roleDisplayEl.style.display = userRoleInActiveGroup ? "block" : "none";
+    }
+    
+    if (userRoleEl) {
+      userRoleEl.innerText = userRoleInActiveGroup || "";
+    }
+
+    if (uploadSectionEl) {
+      if (["Owner", "Admin", "DocumentManager"].includes(userRoleInActiveGroup)) {
+        uploadSectionEl.style.display = "block";
+      } else {
+        uploadSectionEl.style.display = "none";
+      }
+    }
+  }
+
+  /* ===================== GROUP DOCUMENTS ===================== */
+  function fetchGroupDocuments() {
+    // Early return if no active group
+    if (!activeGroupId) {
+      console.warn("No active group selected");
+      const tbody = document.querySelector("#group-documents-table tbody");
+      if (tbody) {
+        tbody.innerHTML = "<tr><td colspan='5' class='text-center'>Please select a channel first</td></tr>";
+      }
+      return Promise.resolve();
+    }
+
+    // Make sure API path starts with a slash
+    return fetch("/api/group_documents")
+      .then((r) => {
+        if (!r.ok) {
+          throw new Error(`HTTP error ${r.status}: ${r.statusText}`);
+        }
+        return r.json();
+      })
+      .then((data) => {
+        if (data.error) {
+          throw new Error(data.error);
+        }
+        const tbody = document.querySelector("#group-documents-table tbody");
+        if (!tbody) {
+          console.error("Document table body not found");
+          return;
+        }
+        
+        tbody.innerHTML = "";
+        
+        if (!data.documents || data.documents.length === 0) {
+          tbody.innerHTML = "<tr><td colspan='5' class='text-center'>No documents found</td></tr>";
+          return;
+        }
+        
+        (data.documents || []).forEach((doc) => {
+          const tr = document.createElement("tr");
+          tr.innerHTML = `
+            <td>${doc.file_name}</td>
+            <td>${new Date(doc.upload_date).toLocaleString()}</td>
+            <td>${doc.version}</td>
+            <td>${doc.num_chunks}</td>
+            <td>
+              ${
+                ["Owner", "Admin", "DocumentManager"].includes(userRoleInActiveGroup)
+                  ? `<button class="btn btn-sm btn-danger" onclick="onDeleteDocument('${doc.id}', '${doc.group_id}')">Delete</button>`
+                  : ``
+              }
+              <button class="btn btn-sm btn-primary" onclick="onSearchInChat('${doc.id}')">Search in Chat</button>
+            </td>
+          `;
+          tbody.appendChild(tr);
+        });
+      })
+      .catch((err) => {
+        console.error("Error fetching group documents:", err);
+        const tbody = document.querySelector("#group-documents-table tbody");
+        if (tbody) {
+          tbody.innerHTML = `<tr><td colspan='5' class='text-center text-danger'>Error: ${err.message}</td></tr>`;
+        }
+      });
+  }
+
+  function onDeleteDocument(docId, groupId) {
+    if (!docId || !groupId) {
+      console.error("Missing document ID or group ID");
+      return;
+    }
+    
+    if (!confirm("Are you sure you want to delete this group document?")) {
+      return;
+    }
+    
+    fetch(`/api/group_documents/${docId}?group_id=${groupId}`, {
+      method: "DELETE",
+    })
+      .then((r) => {
+        if (!r.ok) {
+          throw new Error(`HTTP error ${r.status}: ${r.statusText}`);
+        }
+        return r.json();
+      })
+      .then((data) => {
+        if (data.error) {
+          alert("Error deleting document: " + data.error);
+          throw new Error(data.error);
+        }
+        alert(data.message || "Document deleted");
+        fetchGroupDocuments();
+      })
+      .catch((err) => console.error(err));
+  }
+
+  function onSearchInChat(docId) {
+    if (!docId) {
+      console.error("Missing document ID");
+      return;
+    }
+    window.location.href = `/chats?search_documents=true&doc_scope=group&document_id=${docId}`;
+  }
+
+  function onUploadClick() {
+    const fileInput = document.getElementById("file-input");
+    if (!fileInput) {
+      console.error("File input element not found");
+      return;
+    }
+    
+    const file = fileInput.files[0];
+    if (!file) {
+      alert("Please select a file to upload.");
+      return;
+    }
+    
+    let formData = new FormData();
+    formData.append("file", file);
+
+    if (loadingModal) {
+      loadingModal.show();
+    }
+
+    fetch("/api/group_documents/upload", {
+      method: "POST",
+      body: formData,
+    })
+      .then((response) => {
+        if (!response.ok) {
+          throw new Error(`HTTP error ${response.status}: ${response.statusText}`);
+        }
+        return response.json();
+      })
+      .then((data) => {
+        if (data.error) {
+          alert("Error uploading doc: " + data.error);
+          throw new Error(data.error);
+        }
+        alert(data.message);
+        if (fileInput) {
+          fileInput.value = "";
+        }
+        fetchGroupDocuments();
+      })
+      .catch((err) => {
+        console.error(err);
+        alert("Error uploading document: " + err.message);
+      })
+      .finally(() => {
+        if (loadingModal) {
+          loadingModal.hide();
+        }
+      });
+  }
+
+  /* ===================== GROUP PROMPTS ===================== */
+  function fetchGroupPrompts() {
+    // Early return if no active group
+    if (!activeGroupId) {
+      console.warn("No active group selected");
+      const tbody = document.querySelector("#group-prompts-table tbody");
+      if (tbody) {
+        tbody.innerHTML = "<tr><td colspan='2' class='text-center'>Please select a channel first</td></tr>";
+      }
+      return Promise.resolve();
+    }
+    
+    fetch("/api/group_prompts")
+      .then((r) => {
+        if (!r.ok) {
+          throw new Error(`HTTP error ${r.status}: ${r.statusText}`);
+        }
+        return r.json();
+      })
+      .then((data) => {
+        const tbody = document.querySelector("#group-prompts-table tbody");
+        if (!tbody) {
+          console.error("Prompts table body not found");
+          return;
+        }
+        
+        tbody.innerHTML = "";
+        
+        if (data.error) {
+          throw new Error(data.error);
+        }
+        
+        if (!data.prompts || data.prompts.length === 0) {
+          tbody.innerHTML = "<tr><td colspan='2' class='text-center'>No prompts found</td></tr>";
+          return;
+        }
+        
+        (data.prompts || []).forEach((p) => {
+          const tr = document.createElement("tr");
+          tr.innerHTML = `
+            <td>${p.name}</td>
+            <td>
+              ${
+                ["Owner","Admin","DocumentManager","User"].includes(userRoleInActiveGroup)
+                  ? `<button class="btn btn-sm btn-primary" onclick="onEditGroupPrompt('${p.id}')">Edit</button>
+                     <button class="btn btn-sm btn-danger" onclick="onDeleteGroupPrompt('${p.id}')">Delete</button>`
+                  : ``
+              }
+            </td>
+          `;
+          tbody.appendChild(tr);
+        });
+      })
+      .catch((err) => {
+        console.error("Error fetching group prompts:", err);
+        const tbody = document.querySelector("#group-prompts-table tbody");
+        if (tbody) {
+          tbody.innerHTML = `<tr><td colspan='2' class='text-center text-danger'>Error: ${err.message}</td></tr>`;
+        }
+      });
+  }
+
+  function onEditGroupPrompt(promptId) {
+    if (!promptId) {
+      console.error("Missing prompt ID");
+      return;
+    }
+    
+    fetch("/api/group_prompts/" + promptId)
+      .then((r) => {
+        if (!r.ok) {
+          throw new Error(`HTTP error ${r.status}: ${r.statusText}`);
+        }
+        return r.json();
+      })
+      .then((data) => {
+        if (data.error) {
+          alert("Error retrieving group prompt: " + data.error);
+          return;
+        }
+        
+        const modalLabelEl = document.getElementById("groupPromptModalLabel");
+        const promptIdEl = document.getElementById("group-prompt-id");
+        const promptNameEl = document.getElementById("group-prompt-name");
+        const promptContentEl = document.getElementById("group-prompt-content");
+        
+        if (modalLabelEl) modalLabelEl.textContent = "Edit Group Prompt";
+        if (promptIdEl) promptIdEl.value = data.id;
+        if (promptNameEl) promptNameEl.value = data.name;
+        if (promptContentEl) promptContentEl.value = data.content;
+        
+        // Update SimpleMDE content if available
+        if (groupSimplemde) {
+          groupSimplemde.value(data.content || "");
+        }
+        
+        if (groupPromptModal) {
+          groupPromptModal.show();
+        }
+      })
+      .catch((err) => console.error(err));
+  }
+
+  function onDeleteGroupPrompt(promptId) {
+    if (!promptId) {
+      console.error("Missing prompt ID");
+      return;
+    }
+    
+    if (!confirm("Are you sure you want to delete this group prompt?")) return;
+    
+    fetch("/api/group_prompts/" + promptId, { method: "DELETE" })
+      .then((r) => {
+        if (!r.ok) {
+          throw new Error(`HTTP error ${r.status}: ${r.statusText}`);
+        }
+        return r.json();
+      })
+      .then((data) => {
+        if (data.error) {
+          alert("Error deleting group prompt: " + data.error);
+          return;
+        }
+        fetchGroupPrompts();
+      })
+      .catch((err) => console.error(err));
+  }
+
+  function updateGroupPromptsRoleUI() {
+    const createSectionEl = document.getElementById("create-group-prompt-section");
+    const warningEl = document.getElementById("group-prompts-role-warning");
+    
+    const canEdit = ["Owner", "Admin", "DocumentManager"].includes(userRoleInActiveGroup);
+    
+    if (createSectionEl) {
+      createSectionEl.style.display = canEdit ? "block" : "none";
+    }
+    
+    if (warningEl) {
+      warningEl.style.display = canEdit ? "none" : "block";
+    }
+  }
+
+  /* ===================== CHANNEL MANAGEMENT TAB ===================== */
+  function setupChannelManagement() {
+    // Handle searching for groups
+    const searchForm = document.getElementById("searchGroupsForm");
+    if (searchForm) {
+      searchForm.addEventListener("submit", function (e) {
+        e.preventDefault();
+        const query = document.getElementById("searchQuery").value;
+        loadManagementTabData(query);
+      });
+    }
+
+    // Handle form submission for creating a group
+// Replace the current createGroupForm submit handler
+    const createGroupForm = document.getElementById("createGroupForm");
+    if (createGroupForm) {
+      createGroupForm.addEventListener("submit", function (e) {
+        e.preventDefault();
+        const groupNameEl = document.getElementById("groupName");
+        const groupDescEl = document.getElementById("groupDescription");
+        
+        if (!groupNameEl) {
+          console.error("Group name element not found");
+          return;
+        }
+        
+        const name = groupNameEl.value.trim();
+        if (!name) {
+          showToast("Channel name cannot be empty", "danger");
+          return;
+        }
+        
+        // Show loading state
+        const submitBtn = this.querySelector('button[type="submit"]');
+        const originalBtnText = submitBtn.innerHTML;
+        submitBtn.disabled = true;
+        submitBtn.innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Creating...';
+        
+        fetch("/api/groups", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ 
+            name: name,
+            description: groupDescEl ? groupDescEl.value : "" 
+          }),
+        })
+          .then(response => {
+            // First check if we can get a JSON response regardless of status code
+            return response.json().then(data => {
+              // Add the status information to the data
+              return { ...data, status: response.status, ok: response.ok };
+            }).catch(err => {
+              // If JSON parsing fails, return a simple object with status
+              return { status: response.status, ok: response.ok, error: 'Invalid response format' };
+            });
+          })
+          .then((data) => {
+            // Reset button state
+            submitBtn.disabled = false;
+            submitBtn.innerHTML = originalBtnText;
+            
+            // If response wasn't successful
+            if (!data.ok) {
+              // Handle specific error cases
+              if (data.error && data.error.includes("already exists")) {
+                showToast("A channel with this name already exists. Please choose a different name.", "danger");
+              } else if (data.status === 403) {
+                showToast("You don't have permission to create channels.", "danger");
+              } else {
+                showToast(`Error creating channel: ${data.error || 'Unknown error'}`, "danger");
+              }
+              return;
+            }
+            
+            // Success case - close modal and refresh UI
+            console.log("Success:", data);
+            const createGroupModal = document.getElementById("createGroupModal");
+            if (createGroupModal) {
+              const bsModal = bootstrap.Modal.getInstance(createGroupModal);
+              if (bsModal) bsModal.hide();
+            }
+            
+            // Clear the form for next time
+            if (groupNameEl) groupNameEl.value = "";
+            if (groupDescEl) groupDescEl.value = "";
+            
+            // Show success message and refresh data
+            showToast("Channel created successfully!", "success");
+            loadManagementTabData();
+            fetchUserGroups();
+          })
+          .catch((err) => {
+            // Reset button state
+            submitBtn.disabled = false;
+            submitBtn.innerHTML = originalBtnText;
+            
+            console.error("Channel creation error:", err);
+            showToast(`Error: ${err.message || 'Failed to create channel'}`, "danger");
+          });
+      });
+    }
+
+    // Make sure this showToast function is included if it doesn't already exist
+    function showToast(message, type = 'info') {
+      // Create toast container if it doesn't exist
+      let toastContainer = document.getElementById('toast-container');
+      if (!toastContainer) {
+        toastContainer = document.createElement('div');
+        toastContainer.id = 'toast-container';
+        toastContainer.className = 'position-fixed bottom-0 end-0 p-3';
+        toastContainer.style.zIndex = '5000';
+        document.body.appendChild(toastContainer);
+      }
+      
+      // Create toast element
+      const toastEl = document.createElement('div');
+      toastEl.className = `toast align-items-center text-white bg-${type} border-0`;
+      toastEl.setAttribute('role', 'alert');
+      toastEl.setAttribute('aria-live', 'assertive');
+      toastEl.setAttribute('aria-atomic', 'true');
+      
+      toastEl.innerHTML = `
+        <div class="d-flex">
+          <div class="toast-body">
+            ${message}
+          </div>
+          <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast" aria-label="Close"></button>
+        </div>
+      `;
+      
+      toastContainer.appendChild(toastEl);
+      
+      // Initialize and show the toast
+      const toast = new bootstrap.Toast(toastEl, { delay: 5000 });
+      toast.show();
+      
+      // Remove the toast element after it's hidden
+      toastEl.addEventListener('hidden.bs.toast', function() {
+        toastEl.remove();
+      });
+    }
+    // Search all groups functionality
+    const globalSearchBtn = document.getElementById("globalGroupSearchBtn");
+    if (globalSearchBtn) {
+      globalSearchBtn.addEventListener("click", function () {
+        const searchInput = document.getElementById("globalGroupSearchInput");
+        const term = searchInput ? searchInput.value.trim() : "";
+        searchAllGroups(term);
+      });
+    }
+
+    // If you want to auto-load some initial list on modal open, do that:
+    const findGroupModal = document.getElementById("findGroupModal");
+    if (findGroupModal) {
+      findGroupModal.addEventListener("show.bs.modal", function () {
+        // Clear old results
+        const searchInput = document.getElementById("globalGroupSearchInput");
+        const resultsTable = document.querySelector("#globalGroupResultsTable tbody");
+        
+        if (searchInput) searchInput.value = "";
+        if (resultsTable) resultsTable.innerHTML = "";
+        
+        // Optionally load all groups on open
+        searchAllGroups("");
+      });
+    }
+  }
+
+  // Load all user groups for the management tab
+  function loadManagementTabData(searchQuery = "") {
+    let url = "/api/groups";
+    if (searchQuery && searchQuery.trim() !== "") {
+      url += "?search=" + encodeURIComponent(searchQuery.trim());
+    }
+    
+    fetch(url)
+      .then((r) => {
+        if (!r.ok) {
+          throw new Error(`HTTP error ${r.status}: ${r.statusText}`);
+        }
+        return r.json();
+      })
+      .then((data) => {
+        renderGroups(data);
+      })
+      .catch((err) => {
+        const groupsSection = document.getElementById("groupsSection");
+        if (groupsSection) {
+          groupsSection.innerHTML = 
+            "<p class='text-danger'>Failed to load groups. Check console for details.</p>";
+        }
+        console.error(err);
+      });
+  }
+
+  function renderGroups(groups) {
+    const groupsSection = document.getElementById("groupsSection");
+    if (!groupsSection) {
+      console.error("Groups section not found");
+      return;
+    }
+    
+    if (!groups || groups.length === 0) {
+      groupsSection.innerHTML = `
+        <div class="alert alert-warning">
+          You are not a member of any group. You can create a new group or search for one to join.
+        </div>
+      `;
+      return;
+    }
+
+    let html = `
+      <table class="table table-striped table-hover align-middle">
+        <thead>
+          <tr>
+            <th>Name</th>
+            <th>Role</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+    `;
+
+    for (const g of groups) {
+      html += `
+        <tr>
+          <td>${g.name || "Untitled Group"}</td>
+          <td>${g.userRole || "User"}</td>
+          <td>
+            <a class="btn btn-sm btn-secondary" href="/groups/${g.id}">Manage</a>
+          </td>
+        </tr>
+      `;
+    }
+
+    html += `</tbody></table>`;
+    groupsSection.innerHTML = html;
+  }
+
+  function searchAllGroups(searchTerm) {
+    let url = "/api/groups/discover";
+    if (searchTerm) {
+      url += "?search=" + encodeURIComponent(searchTerm);
+    }
+
+    fetch(url)
+      .then((r) => {
+        if (!r.ok) {
+          throw new Error(`HTTP error ${r.status}: ${r.statusText}`);
+        }
+        return r.json();
+      })
+      .then((data) => {
+        renderGlobalGroupResults(data);
+      })
+      .catch((err) => {
+        console.error(err);
+        alert("Failed to load global groups. Check console for details.");
+      });
+  }
+
+  function renderGlobalGroupResults(groups) {
+    const tbody = document.querySelector("#globalGroupResultsTable tbody");
+    if (!tbody) {
+      console.error("Global group results table not found");
+      return;
+    }
+    
+    tbody.innerHTML = "";
+
+    if (!groups || groups.length === 0) {
+      tbody.innerHTML = `
+        <tr>
+          <td colspan="3" class="text-muted">No groups found</td>
+        </tr>
+      `;
+      return;
+    }
+
+    let rows = "";
+    groups.forEach((g) => {
+      rows += `
+        <tr>
+          <td>${escapeHtml(g.name)}</td>
+          <td>${escapeHtml(g.description)}</td>
+          <td>
+            <button
+              class="btn btn-sm btn-primary"
+              onclick="requestToJoin('${g.id}')"
+            >
+              Request to Join
+            </button>
+          </td>
+        </tr>
+      `;
+    });
+    tbody.innerHTML = rows;
+  }
+
+  function requestToJoin(groupId) {
+    if (!groupId) {
+      console.error("Missing group ID");
+      return;
+    }
+    
+    fetch("/api/groups/" + encodeURIComponent(groupId) + "/requests", {
+      method: "POST"
+    })
+      .then((r) => {
+        if (!r.ok) {
+          throw new Error(`HTTP error ${r.status}: ${r.statusText}`);
+        }
+        return r.json();
+      })
+      .then((response) => {
+        alert("Join request sent!");
+        // You might disable the button or remove the row after success
+      })
+      .catch((err) => {
+        console.error(err);
+        if (err.responseJSON && err.responseJSON.error) {
+          alert("Failed to request join: " + err.responseJSON.error);
+        } else {
+          alert("Error sending request: " + err.message);
+        }
+      });
+  }
+
+  function escapeHtml(str) {
+    if (!str) return "";
+    return str
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;");
+  }
+
+// Add this variable to store the user's admin status
+let isUserAdmin = false;
+
+// Inside the DOMContentLoaded event handler, add code to check admin status
+document.addEventListener("DOMContentLoaded", () => {
+  // Existing initialization code...
+  
+  // Check if user is admin
+  checkAdminStatus();
+  
+  // Rest of existing initialization code...
+});
+
+// Function to check if current user is an admin
+// Update the checkAdminStatus function
+function checkAdminStatus() {
+  // First try a safer approach that doesn't depend on the profile endpoint
+  const createGroupBtn = document.getElementById('createGroupBtn');
+  
+  // Option 1: Use an endpoint that already exists and is working properly
+  fetch('/api/user/settings')
+    .then(response => {
+      if (!response.ok) {
+        console.warn("Failed to get user settings:", response.status);
+        if (createGroupBtn) {
+          createGroupBtn.style.display = 'none';
+        }
+        return null;
+      }
+      return response.json();
+    })
+    .then(data => {
+      // If we have data and it indicates admin status in some way
+      if (data && data.settings && data.settings.isAdmin) {
+        isUserAdmin = true;
+        if (createGroupBtn) {
+          createGroupBtn.style.display = 'inline-block';
+        }
+      } else {
+        // Fallback - just try to create a group and see if it's allowed
+        // The actual permission check will happen server-side
+        if (createGroupBtn) {
+          createGroupBtn.style.display = 'inline-block';  // Show it for everyone, server will validate
+        }
+      }
+    })
+    .catch(error => {
+      console.error('Error checking settings:', error);
+      if (createGroupBtn) {
+        createGroupBtn.style.display = 'inline-block';  // Show it for everyone, server will validate
+      }
+    });
+}
+
+// Update the createGroupForm submit handler to handle duplicate name errors
+// Replace the current createGroupForm submit handler
+const createGroupForm = document.getElementById("createGroupForm");
+if (createGroupForm) {
+  createGroupForm.addEventListener("submit", function (e) {
+    e.preventDefault();
+    const groupNameEl = document.getElementById("groupName");
+    const groupDescEl = document.getElementById("groupDescription");
+    
+    if (!groupNameEl) {
+      console.error("Group name element not found");
+      return;
+    }
+    
+    const name = groupNameEl.value;
+    if (!name || name.trim() === "") {
+      showToast("Group name cannot be empty", "danger");
+      return;
+    }
+    
+    const description = groupDescEl ? groupDescEl.value : "";
+    
+    fetch("/api/groups", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name, description }),
+    })
+      .then(response => {
+        const contentType = response.headers.get("content-type");
+        if (!response.ok) {
+          if (contentType && contentType.includes("application/json")) {
+            return response.json().then(errorData => {
+              throw new Error(errorData.error || `HTTP error ${response.status}`);
+            });
+          } else {
+            // If not JSON, just throw general error
+            throw new Error(`HTTP error ${response.status}: ${response.statusText}`);
+          }
+        }
+        return response.json();
+      })
+      .then(data => {
+        // Success case
+        const createGroupModal = document.getElementById("createGroupModal");
+        if (createGroupModal) {
+          const bsModal = bootstrap.Modal.getInstance(createGroupModal);
+          if (bsModal) bsModal.hide();
+        }
+        loadManagementTabData();
+        fetchUserGroups(); // Also refresh the dropdown
+        showToast("Channel created successfully!", "success");
+      })
+      .catch(err => {
+        console.error("Group creation error:", err);
+        
+        if (err.message.includes("already exists")) {
+          showToast("A channel with this name already exists. Please choose a different name.", "danger");
+        } else if (err.message.includes("Unauthorized") || err.message.includes("permission")) {
+          showToast("Only administrators can create new channels.", "danger");
+        } else {
+          showToast(`Error creating channel: ${err.message}`, "danger");
+        }
+      });
+  });
+}
+
+// Add this function if it doesn't already exist in your code
+function showToast(message, type = 'info') {
+  // Create toast container if it doesn't exist
+  let toastContainer = document.getElementById('toast-container');
+  if (!toastContainer) {
+    toastContainer = document.createElement('div');
+    toastContainer.id = 'toast-container';
+    toastContainer.className = 'position-fixed bottom-0 end-0 p-3';
+    toastContainer.style.zIndex = '5000';
+    document.body.appendChild(toastContainer);
+  }
+  
+  // Create toast element
+  const toastEl = document.createElement('div');
+  toastEl.className = `toast align-items-center text-white bg-${type} border-0`;
+  toastEl.setAttribute('role', 'alert');
+  toastEl.setAttribute('aria-live', 'assertive');
+  toastEl.setAttribute('aria-atomic', 'true');
+  
+  toastEl.innerHTML = `
+    <div class="d-flex">
+      <div class="toast-body">
+        ${message}
+      </div>
+      <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast" aria-label="Close"></button>
+    </div>
+  `;
+  
+  toastContainer.appendChild(toastEl);
+  
+  // Initialize and show the toast
+  const toast = new bootstrap.Toast(toastEl, { delay: 5000 });
+  toast.show();
+  
+  // Remove the toast element after it's hidden
+  toastEl.addEventListener('hidden.bs.toast', function() {
+    toastEl.remove();
+  });
+}
+</script>
+{% endblock %}

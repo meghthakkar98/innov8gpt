@@ -1,0 +1,240 @@
+<!-- templates/my_feedback.html -->
+ 
+{% extends "base.html" %}
+{% block title %}
+  My Feedback - {{ app_settings.app_title }}
+{% endblock %}
+{% block content %}
+
+<div class="container">
+  <h2>My Feedback</h2>
+  <p class="text-muted">
+    Below is a list of all feedback you have submitted, along with any notes or actions taken by an admin.
+  </p>
+  <hr />
+
+  <!-- FILTERS ROW -->
+  <div class="row mb-3">
+    <div class="col-md-4">
+      <label for="filterFeedbackType" class="form-label">Filter by Feedback Type:</label>
+      <select id="filterFeedbackType" class="form-select form-select-sm">
+        <option value="">(All)</option>
+        <option value="Positive">Positive</option>
+        <option value="Negative">Negative</option>
+        <option value="Neutral">Neutral</option>
+      </select>
+    </div>
+    <div class="col-md-4">
+      <label for="filterAcknowledged" class="form-label">Filter by Acknowledged:</label>
+      <select id="filterAcknowledged" class="form-select form-select-sm">
+        <option value="">(All)</option>
+        <option value="true">Acknowledged</option>
+        <option value="false">Not Acknowledged</option>
+      </select>
+    </div>
+  </div>
+
+  <div class="table-responsive">
+    <table id="my-feedback-table" class="table table-striped align-middle">
+      <thead>
+        <tr>
+          <th>Timestamp</th>
+          <th>Prompt</th>
+          <th>AI Response</th>
+          <th>Feedback</th>
+          <th>Reason</th>
+          <th>Acknowledged</th>
+          <th>Analysis Notes</th>
+          <th>Response to User</th>
+          <th>Action Taken</th>
+          <th>Details</th>
+        </tr>
+      </thead>
+      <tbody>
+        <!-- Populated by JS -->
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<!-- ===== Modal to View a Single Feedback Entry in Detail ===== -->
+<div class="modal fade" id="viewFeedbackModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-lg modal-dialog-scrollable">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">Feedback Details</h5>
+        <button
+          type="button"
+          class="btn-close"
+          data-bs-dismiss="modal"
+          aria-label="Close"
+        ></button>
+      </div>
+      <div class="modal-body">
+        <!-- Read-only fields displayed as text instead of inputs -->
+        <div class="mb-3">
+          <label class="form-label fw-bold">Timestamp:</label>
+          <p id="detailTimestamp" class="form-control-plaintext"></p>
+        </div>
+        <div class="mb-3">
+          <label class="form-label fw-bold">Prompt:</label>
+          <p id="detailPrompt" class="form-control-plaintext" style="white-space: pre-wrap;"></p>
+        </div>
+        <div class="mb-3">
+          <label class="form-label fw-bold">AI Response:</label>
+          <p id="detailAiResponse" class="form-control-plaintext" style="white-space: pre-wrap;"></p>
+        </div>
+        <div class="mb-3">
+          <label class="form-label fw-bold">Feedback Type:</label>
+          <p id="detailFeedbackType" class="form-control-plaintext"></p>
+        </div>
+        <div class="mb-3">
+          <label class="form-label fw-bold">Reason:</label>
+          <p id="detailReason" class="form-control-plaintext" style="white-space: pre-wrap;"></p>
+        </div>
+        <div class="mb-3">
+          <label class="form-label fw-bold">Acknowledged:</label>
+          <p id="detailAcknowledged" class="form-control-plaintext"></p>
+        </div>
+        <div class="mb-3">
+          <label class="form-label fw-bold">Analysis Notes:</label>
+          <p id="detailAnalysisNotes" class="form-control-plaintext" style="white-space: pre-wrap;"></p>
+        </div>
+        <div class="mb-3">
+          <label class="form-label fw-bold">Response to User:</label>
+          <p id="detailResponseToUser" class="form-control-plaintext" style="white-space: pre-wrap;"></p>
+        </div>
+        <div class="mb-3">
+          <label class="form-label fw-bold">Action Taken:</label>
+          <p id="detailActionTaken" class="form-control-plaintext"></p>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+let feedbackTable;         // DataTable reference
+let myFeedbackData = [];   // Store all feedback so we can look up details easily
+
+document.addEventListener("DOMContentLoaded", function() {
+  // 1) Fetch the user's feedback
+  fetch("/feedback/my")
+    .then(resp => resp.json())
+    .then(data => {
+      myFeedbackData = data || [];
+      populateTable(data);
+      initializeDataTable();
+      attachFilterHandlers();
+    })
+    .catch(err => {
+      console.error("Error loading user's feedback:", err);
+      alert("Error loading feedback. Check console for details.");
+    });
+
+  // 2) Detail button (delegated event)
+  document.addEventListener("click", function(e) {
+    if (e.target.classList.contains("view-details-btn")) {
+      const feedbackId = e.target.getAttribute("data-id");
+      openDetailsModal(feedbackId);
+    }
+  });
+});
+
+/** Populate table rows dynamically. */
+function populateTable(data) {
+  const tbody = document.querySelector("#my-feedback-table tbody");
+  tbody.innerHTML = "";
+
+  data.forEach(item => {
+    const adminReview = item.adminReview || {};
+    const ackText = adminReview.acknowledged ? "Yes" : "No";
+
+    const row = document.createElement("tr");
+    row.innerHTML = `
+      <td>${item.timestamp || ""}</td>
+      <td>${item.prompt || ""}</td>
+      <td>${item.aiResponse || ""}</td>
+      <td>${item.feedbackType || ""}</td>
+      <td>${item.reason || ""}</td>
+      <td>${ackText}</td>
+      <td>${adminReview.analysisNotes || ""}</td>
+      <td>${adminReview.responseToUser || ""}</td>
+      <td>${adminReview.actionTaken || ""}</td>
+      <td>
+        <button
+          class="btn btn-sm btn-primary view-details-btn"
+          data-id="${item.id}">
+          View
+        </button>
+      </td>
+    `;
+    tbody.appendChild(row);
+  });
+}
+
+/** Initialize DataTables with custom filtering. */
+function initializeDataTable() {
+  feedbackTable = $("#my-feedback-table").DataTable({
+    responsive: true
+  });
+
+  // Add a custom filter to DataTables
+  $.fn.dataTable.ext.search.push(function(settings, rowData) {
+    // rowData = [Timestamp, Prompt, AIResp, FBType, Reason, Ack, Notes, Resp2User, ActionTaken, ViewBtn]
+    const feedbackTypeCell = rowData[3] || "";
+    const acknowledgedCell = rowData[5] || ""; // "Yes" or "No"
+
+    const selectedFbType = $("#filterFeedbackType").val();   // e.g. "Positive"
+    const selectedAck = $("#filterAcknowledged").val();      // "true" or "false"
+
+    // Filter by feedback type
+    if (selectedFbType && feedbackTypeCell !== selectedFbType) {
+      return false;
+    }
+
+    // Filter by acknowledged
+    if (selectedAck) {
+      const isAck = (acknowledgedCell === "Yes");
+      const wantAck = (selectedAck === "true");
+      if (isAck !== wantAck) {
+        return false;
+      }
+    }
+
+    return true;
+  });
+}
+
+/** Hook up the two filter dropdowns so they cause the table to redraw. */
+function attachFilterHandlers() {
+  $("#filterFeedbackType, #filterAcknowledged").on("change", function() {
+    feedbackTable.draw();
+  });
+}
+
+/** Open the read-only modal to show additional feedback details. */
+function openDetailsModal(feedbackId) {
+  const item = myFeedbackData.find(f => f.id == feedbackId);
+  if (!item) return;
+
+  const adminReview = item.adminReview || {};
+
+  // Fill in read-only fields with textContent
+  document.getElementById("detailTimestamp").textContent = item.timestamp || "";
+  document.getElementById("detailPrompt").textContent = item.prompt || "";
+  document.getElementById("detailAiResponse").textContent = item.aiResponse || "";
+  document.getElementById("detailFeedbackType").textContent = item.feedbackType || "";
+  document.getElementById("detailReason").textContent = item.reason || "";
+  document.getElementById("detailAcknowledged").textContent = adminReview.acknowledged ? "Yes" : "No";
+  document.getElementById("detailAnalysisNotes").textContent = adminReview.analysisNotes || "";
+  document.getElementById("detailResponseToUser").textContent = adminReview.responseToUser || "";
+  document.getElementById("detailActionTaken").textContent = adminReview.actionTaken || "";
+
+  const modalEl = new bootstrap.Modal(document.getElementById("viewFeedbackModal"));
+  modalEl.show();
+}
+</script>
+{% endblock %}

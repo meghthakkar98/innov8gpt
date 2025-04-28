@@ -1,0 +1,700 @@
+<!-- templates/document_viewer.html -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Document Viewer</title>
+    <!-- Bootstrap CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.8.1/font/bootstrap-icons.css" rel="stylesheet">
+    <!-- PDF.js library for PDF rendering -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.4.120/pdf.min.js"></script>
+    <script>
+        // Set the PDF.js worker source
+        pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.4.120/pdf.worker.min.js';
+    </script>
+    <style>
+        html, body {
+            height: 100%;
+            margin: 0;
+            padding: 0;
+            overflow: hidden;
+        }
+        
+        #viewer-container {
+            width: 100%;
+            height: calc(100vh - 50px);
+            background-color: #525659;
+            overflow: auto;
+            display: flex;
+            justify-content: center;
+            padding: 20px 0;
+        }
+        
+        #toolbar {
+            height: 50px;
+            background-color: #f1f1f1;
+            display: flex;
+            align-items: center;
+            padding: 0 20px;
+            border-bottom: 1px solid #ddd;
+            position: relative;
+            z-index: 10;
+            justify-content: space-between;
+        }
+        
+        .toolbar-button {
+            background: none;
+            border: none;
+            font-size: 1.5em;
+            cursor: pointer;
+            margin: 0 5px;
+            color: #333;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            width: 40px;
+            height: 40px;
+        }
+        
+        .toolbar-button:disabled {
+            color: #ccc;
+            cursor: not-allowed;
+        }
+        
+        .toolbar-section {
+            display: flex;
+            align-items: center;
+            margin: 0 10px;
+        }
+        
+        /* PDF specific styles */
+        #pdf-controls {
+            display: none;
+        }
+        
+        #page-indicator {
+            margin: 0 15px;
+            font-family: Arial, sans-serif;
+            min-width: 80px;
+            text-align: center;
+        }
+        
+        #zoom-level {
+            min-width: 60px;
+            text-align: center;
+        }
+        
+        #canvas-wrapper {
+            display: inline-block;
+            margin: 0 auto 50px auto;
+            position: relative;
+        }
+        
+        #pdf-canvas {
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+            background-color: white;
+            display: block;
+        }
+        
+        /* Image viewer styles */
+        #image-viewer {
+            display: none;
+            max-width: 95%;
+            max-height: 90%;
+            margin: 0 auto;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+            background-color: white;
+            object-fit: contain;
+        }
+        
+        /* Text viewer styles */
+        #text-viewer {
+            display: none;
+            width: 90%;
+            max-width: 1200px;
+            height: 90%;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: white;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+            overflow: auto;
+            white-space: pre-wrap;
+            font-family: monospace;
+        }
+        
+        /* Office viewer iframe */
+        #office-viewer {
+            display: none;
+            width: 95%;
+            height: 95%;
+            margin: 0 auto;
+            border: none;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+            background-color: white;
+        }
+        
+        /* Table viewer */
+        #table-viewer {
+            display: none;
+            width: 90%;
+            max-width: 1200px;
+            max-height: 90%;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: white;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+            overflow: auto;
+        }
+        
+        #table-viewer table {
+            border-collapse: collapse;
+            width: 100%;
+        }
+        
+        #table-viewer th, #table-viewer td {
+            border: 1px solid #ddd;
+            padding: 8px;
+            text-align: left;
+        }
+        
+        #table-viewer th {
+            background-color: #f2f2f2;
+            position: sticky;
+            top: 0;
+        }
+        
+        /* Loading spinner */
+        .spinner {
+            border: 5px solid #f3f3f3;
+            border-top: 5px solid #3498db;
+            border-radius: 50%;
+            width: 50px;
+            height: 50px;
+            animation: spin 1s linear infinite;
+            margin: 20px auto;
+        }
+        
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        
+        /* Error message */
+        .error-message {
+            color: #721c24;
+            background-color: #f8d7da;
+            border: 1px solid #f5c6cb;
+            border-radius: 5px;
+            padding: 20px;
+            margin: 20px;
+            text-align: center;
+            max-width: 80%;
+        }
+        
+        /* Unsupported format message */
+        #unsupported-format {
+            display: none;
+            color: #856404;
+            background-color: #fff3cd;
+            border: 1px solid #ffeeba;
+            border-radius: 5px;
+            padding: 20px;
+            margin: 20px auto;
+            text-align: center;
+            max-width: 80%;
+        }
+    </style>
+</head>
+<body>
+    <!-- Document Viewer Toolbar -->
+    <div id="toolbar">
+        <div class="toolbar-section">
+            <div class="document-title fw-bold"></div>
+        </div>
+        
+        <!-- PDF Controls (only shown for PDFs) -->
+        <div class="toolbar-section" id="pdf-controls">
+            <button id="prev-page" class="toolbar-button" disabled><i class="bi bi-arrow-left"></i></button>
+            <span id="page-indicator">Page 0 of 0</span>
+            <button id="next-page" class="toolbar-button" disabled><i class="bi bi-arrow-right"></i></button>
+            
+            <button id="zoom-out" class="toolbar-button" disabled><i class="bi bi-dash-lg"></i></button>
+            <span id="zoom-level">100%</span>
+            <button id="zoom-in" class="toolbar-button" disabled><i class="bi bi-plus-lg"></i></button>
+        </div>
+        
+        <div class="toolbar-section">
+            <!-- Download Button -->
+            <a id="download-btn" href="#" class="btn btn-sm btn-outline-secondary me-2" download>
+                <i class="bi bi-download"></i> Download
+            </a>
+            <!-- Close Button -->
+            <button id="close-btn" class="toolbar-button" title="Close"><i class="bi bi-x-lg"></i></button>
+        </div>
+    </div>
+    
+    <!-- Main Viewer Container -->
+    <div id="viewer-container">
+        <!-- Loading Spinner -->
+        <div id="loading" class="spinner"></div>
+        
+        <!-- PDF Viewer -->
+        <div id="canvas-wrapper" style="display: none;">
+            <canvas id="pdf-canvas"></canvas>
+        </div>
+        
+        <!-- Image Viewer -->
+        <img id="image-viewer" style="display: none;" />
+        
+        <!-- Text Viewer -->
+        <div id="text-viewer" style="display: none;"></div>
+        
+        <!-- Office Viewer (iframe for external viewers) -->
+        <iframe id="office-viewer" style="display: none;"></iframe>
+        
+        <!-- Table Viewer (for CSV, Excel) -->
+        <div id="table-viewer" style="display: none;"></div>
+        
+        <!-- Unsupported Format Message -->
+        <div id="unsupported-format" style="display: none;">
+            <h4>Cannot display this file format in the browser</h4>
+            <p>Please download the file to view it.</p>
+            <button id="download-prompt-btn" class="btn btn-primary mt-3">
+                <i class="bi bi-download"></i> Download File
+            </button>
+        </div>
+        
+        <!-- Error Message -->
+        <div id="error-message" class="error-message" style="display: none;"></div>
+    </div>
+    
+    <!-- Initialize PapaParse for CSV handling -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.3.2/papaparse.min.js"></script>
+    
+    <script>
+        // Get URL parameters
+        const urlParams = new URLSearchParams(window.location.search);
+        const fileUrl = urlParams.get('file');
+        const fileType = urlParams.get('type') || '';
+        const fileName = urlParams.get('name') || 'document';
+        const initialPage = parseInt(urlParams.get('page')) || 1;
+        const initialZoom = urlParams.get('zoom') || '100';
+        
+        // Update document title in toolbar
+        document.querySelector('.document-title').textContent = fileName;
+        
+        // Update download button
+        const downloadBtn = document.getElementById('download-btn');
+        downloadBtn.setAttribute('href', fileUrl);
+        downloadBtn.setAttribute('download', fileName);
+        
+        // Also set up the download prompt button
+        const downloadPromptBtn = document.getElementById('download-prompt-btn');
+        downloadPromptBtn.addEventListener('click', function() {
+            window.location.href = fileUrl;
+        });
+        
+        // Close button handler (tell parent to close the modal)
+        const closeBtn = document.getElementById('close-btn');
+        closeBtn.addEventListener('click', function() {
+            if (window.parent && window.parent !== window) {
+                // Try to signal the parent window to close the modal
+                window.parent.postMessage('close-document-modal', '*');
+            }
+        });
+        
+        // Helper function to show error
+        function showError(message) {
+            document.getElementById('loading').style.display = 'none';
+            document.getElementById('error-message').textContent = message;
+            document.getElementById('error-message').style.display = 'block';
+        }
+        
+        // Helper function to show unsupported format message
+        function showUnsupportedFormat() {
+            document.getElementById('loading').style.display = 'none';
+            document.getElementById('unsupported-format').style.display = 'block';
+        }
+        
+        // PDF Viewer implementation
+        let pdfDoc = null;
+        let pageNum = initialPage;
+        let pageRendering = false;
+        let pageNumPending = null;
+        let scale = 1.0; // Default 100% zoom
+        const canvas = document.getElementById('pdf-canvas');
+        const ctx = canvas.getContext('2d');
+        
+        function renderPdfPage(num) {
+            pageRendering = true;
+            
+            // Get page
+            pdfDoc.getPage(num).then(function(page) {
+                // Use the initial zoom setting first time
+                if (initialZoom && !isNaN(parseFloat(initialZoom)) && scale === 1.0) {
+                    scale = parseFloat(initialZoom) / 100;
+                }
+                
+                // Calculate viewport
+                const viewport = page.getViewport({ scale: scale });
+                
+                // Set canvas dimensions
+                canvas.height = viewport.height;
+                canvas.width = viewport.width;
+                
+                // Render PDF page
+                const renderContext = {
+                    canvasContext: ctx,
+                    viewport: viewport
+                };
+                
+                const renderTask = page.render(renderContext);
+                
+                // Wait for rendering to finish
+                renderTask.promise.then(function() {
+                    pageRendering = false;
+                    
+                    // If there's another page queued, render it
+                    if (pageNumPending !== null) {
+                        renderPdfPage(pageNumPending);
+                        pageNumPending = null;
+                    }
+                    
+                    // Update page indicators
+                    updatePdfControls();
+                });
+            }).catch(function(error) {
+                console.error('Error rendering PDF page:', error);
+                showError('Error rendering PDF page. Please try refreshing.');
+            });
+        }
+        
+        function updatePdfControls() {
+            // Update page indicator
+            document.getElementById('page-indicator').textContent = `Page ${pageNum} of ${pdfDoc.numPages}`;
+            
+            // Update button states
+            document.getElementById('prev-page').disabled = pageNum <= 1;
+            document.getElementById('next-page').disabled = pageNum >= pdfDoc.numPages;
+            
+            // Update zoom level
+            document.getElementById('zoom-level').textContent = `${Math.round(scale * 100)}%`;
+            
+            // Enable zoom buttons
+            document.getElementById('zoom-out').disabled = false;
+            document.getElementById('zoom-in').disabled = false;
+        }
+        
+        function queueRenderPage(num) {
+            if (pageRendering) {
+                pageNumPending = num;
+            } else {
+                renderPdfPage(num);
+            }
+        }
+        
+        // PDF navigation functions
+        function onPrevPage() {
+            if (pageNum <= 1) return;
+            pageNum--;
+            queueRenderPage(pageNum);
+        }
+        
+        function onNextPage() {
+            if (pageNum >= pdfDoc.numPages) return;
+            pageNum++;
+            queueRenderPage(pageNum);
+        }
+        
+        function onZoomIn() {
+            scale = Math.min(scale * 1.25, 3.0);
+            queueRenderPage(pageNum);
+        }
+        
+        function onZoomOut() {
+            scale = Math.max(scale / 1.25, 0.5);
+            queueRenderPage(pageNum);
+        }
+        
+        // Set up PDF control buttons
+        document.getElementById('prev-page').addEventListener('click', onPrevPage);
+        document.getElementById('next-page').addEventListener('click', onNextPage);
+        document.getElementById('zoom-in').addEventListener('click', onZoomIn);
+        document.getElementById('zoom-out').addEventListener('click', onZoomOut);
+        
+        // Initialize the appropriate viewer based on file type
+        function initializeViewer() {
+            if (!fileUrl) {
+                showError('No document specified.');
+                return;
+            }
+            
+            // Determine file type based on extension or provided type
+            let fileExtension = fileUrl.split('.').pop().toLowerCase();
+            if (fileType && fileType !== 'auto') {
+                fileExtension = fileType;
+            }
+            
+            console.log(`Initializing viewer for file: ${fileName}, type: ${fileExtension}`);
+            
+            // Add cache prevention parameters to the URL
+            const urlWithCacheBuster = fileUrl + 
+                (fileUrl.includes('?') ? '&' : '?') + 
+                'cache=' + new Date().getTime();
+            
+            // Initialize viewer based on file type
+            switch(fileExtension) {
+                case 'pdf':
+                    initializePdfViewer(urlWithCacheBuster);
+                    break;
+                case 'jpg':
+                case 'jpeg':
+                case 'png':
+                case 'gif':
+                case 'bmp':
+                case 'webp':
+                case 'svg':
+                case 'tiff':
+                case 'tif':
+                    initializeImageViewer(urlWithCacheBuster);
+                    break;
+                case 'txt':
+                case 'log':
+                case 'md':
+                case 'json':
+                case 'xml':
+                case 'html':
+                case 'htm':
+                case 'css':
+                case 'js':
+                    initializeTextViewer(urlWithCacheBuster);
+                    break;
+                case 'csv':
+                    initializeTableViewer(urlWithCacheBuster, 'csv');
+                    break;
+                case 'xlsx':
+                case 'xls':
+                    initializeTableViewer(urlWithCacheBuster, 'excel');
+                    break;
+                case 'docx':
+                case 'doc':
+                case 'pptx':
+                case 'ppt':
+                    // For Office documents we'll show "Unsupported format" and offer download
+                    // because browser-based viewing usually requires external services
+                    showUnsupportedFormat();
+                    break;
+                default:
+                    // For unsupported file types, show message and offer download
+                    showUnsupportedFormat();
+            }
+        }
+        
+        // Initialize PDF viewer
+        function initializePdfViewer(url) {
+            // Show PDF specific controls
+            document.getElementById('pdf-controls').style.display = 'flex';
+            
+            try {
+                const loadingTask = pdfjsLib.getDocument({
+                    url: url,
+                    withCredentials: true,
+                    cMapUrl: 'https://cdn.jsdelivr.net/npm/pdfjs-dist@3.4.120/cmaps/',
+                    cMapPacked: true,
+                });
+                
+                loadingTask.promise
+                    .then(function(pdfDoc_) {
+                        console.log('PDF loaded successfully');
+                        pdfDoc = pdfDoc_;
+                        
+                        // Ensure page number is within range
+                        pageNum = Math.max(1, Math.min(initialPage, pdfDoc.numPages));
+                        
+                        // Hide loading spinner, show canvas
+                        document.getElementById('loading').style.display = 'none';
+                        document.getElementById('canvas-wrapper').style.display = 'block';
+                        
+                        // Render first page
+                        renderPdfPage(pageNum);
+                    })
+                    .catch(function(error) {
+                        console.error('Error loading PDF:', error);
+                        showError('Error loading the PDF document: ' + (error.message || 'Unknown error'));
+                    });
+            } catch (error) {
+                console.error('Error initializing PDF.js:', error);
+                showError('Error initializing PDF viewer: ' + (error.message || 'Unknown error'));
+            }
+        }
+        
+        // Initialize Image viewer
+        function initializeImageViewer(url) {
+            const imageViewer = document.getElementById('image-viewer');
+            
+            imageViewer.onload = function() {
+                // Hide loading spinner, show image
+                document.getElementById('loading').style.display = 'none';
+                imageViewer.style.display = 'block';
+            };
+            
+            imageViewer.onerror = function() {
+                showError('Error loading image. The image may be corrupted or inaccessible.');
+            };
+            
+            // Set image source
+            imageViewer.src = url;
+        }
+        
+        // Initialize Text viewer
+        function initializeTextViewer(url) {
+            fetch(url)
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error(`HTTP error ${response.status}`);
+                    }
+                    return response.text();
+                })
+                .then(text => {
+                    const textViewer = document.getElementById('text-viewer');
+                    
+                    // For JSON, try to prettify it
+                    if (url.endsWith('.json')) {
+                        try {
+                            const jsonObj = JSON.parse(text);
+                            text = JSON.stringify(jsonObj, null, 2);
+                        } catch (e) {
+                            console.log('Not valid JSON, displaying as plain text');
+                        }
+                    }
+                    
+                    // Display the text
+                    textViewer.textContent = text;
+                    
+                    // Hide loading spinner, show text viewer
+                    document.getElementById('loading').style.display = 'none';
+                    textViewer.style.display = 'block';
+                })
+                .catch(error => {
+                    console.error('Error fetching text file:', error);
+                    showError('Error loading text file: ' + error.message);
+                });
+        }
+        
+        // Initialize Table viewer (CSV/Excel)
+        function initializeTableViewer(url, format) {
+            // For CSV files
+            if (format === 'csv') {
+                fetch(url)
+                    .then(response => {
+                        if (!response.ok) {
+                            throw new Error(`HTTP error ${response.status}`);
+                        }
+                        return response.text();
+                    })
+                    .then(csvData => {
+                        // Parse CSV with PapaParse
+                        Papa.parse(csvData, {
+                            header: true,
+                            skipEmptyLines: true,
+                            complete: function(results) {
+                                renderTable(results.data, results.meta.fields);
+                            },
+                            error: function(error) {
+                                showError('Error parsing CSV: ' + error.message);
+                            }
+                        });
+                    })
+                    .catch(error => {
+                        console.error('Error fetching CSV file:', error);
+                        showError('Error loading CSV file: ' + error.message);
+                    });
+            } else {
+                // For Excel files - we don't have built-in Excel support
+                // So we'll show "Unsupported format" and offer download
+                showUnsupportedFormat();
+            }
+        }
+        
+        // Helper function to render a table from data
+        function renderTable(data, headers) {
+            const tableViewer = document.getElementById('table-viewer');
+            
+            if (!data || data.length === 0) {
+                tableViewer.innerHTML = '<p>No data found in table.</p>';
+                document.getElementById('loading').style.display = 'none';
+                tableViewer.style.display = 'block';
+                return;
+            }
+            
+            // Create table element
+            const table = document.createElement('table');
+            table.className = 'table table-striped table-bordered';
+            
+            // Create header row
+            const thead = document.createElement('thead');
+            const headerRow = document.createElement('tr');
+            
+            headers.forEach(header => {
+                const th = document.createElement('th');
+                th.textContent = header;
+                headerRow.appendChild(th);
+            });
+            
+            thead.appendChild(headerRow);
+            table.appendChild(thead);
+            
+            // Create table body with data rows
+            const tbody = document.createElement('tbody');
+            
+            data.forEach(row => {
+                const tr = document.createElement('tr');
+                
+                headers.forEach(header => {
+                    const td = document.createElement('td');
+                    td.textContent = row[header] || '';
+                    tr.appendChild(td);
+                });
+                
+                tbody.appendChild(tr);
+            });
+            
+            table.appendChild(tbody);
+            
+            // Add the table to the container
+            tableViewer.innerHTML = '';
+            tableViewer.appendChild(table);
+            
+            // Hide loading spinner, show table
+            document.getElementById('loading').style.display = 'none';
+            tableViewer.style.display = 'block';
+        }
+        
+        // Handle keyboard navigation
+        document.addEventListener('keydown', function(e) {
+            // Only handle keys for PDF viewer
+            if (document.getElementById('pdf-controls').style.display === 'flex') {
+                if (e.key === 'ArrowLeft') {
+                    onPrevPage();
+                } else if (e.key === 'ArrowRight') {
+                    onNextPage();
+                } else if (e.key === '+' || e.key === '=') {
+                    onZoomIn();
+                } else if (e.key === '-' || e.key === '_') {
+                    onZoomOut();
+                }
+            }
+            
+            // Handle escape key for all viewers
+            if (e.key === 'Escape') {
+                closeBtn.click();
+            }
+        });
+        
+        // Start the initialization
+        initializeViewer();
+    </script>
+</body>
+</html>

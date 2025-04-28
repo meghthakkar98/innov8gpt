@@ -1,0 +1,254 @@
+<!-- templates/ms_graph_document_viewer.html -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ file_name }} - Document Viewer</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.8.1/font/bootstrap-icons.css" rel="stylesheet">
+    <style>
+        html, body {
+            height: 100%;
+            margin: 0;
+            padding: 0;
+            overflow: hidden;
+        }
+        
+        #toolbar {
+            height: 50px;
+            background-color: #f1f1f1;
+            display: flex;
+            align-items: center;
+            padding: 0 20px;
+            border-bottom: 1px solid #ddd;
+            position: relative;
+            z-index: 10;
+            justify-content: space-between;
+        }
+        
+        .toolbar-section {
+            display: flex;
+            align-items: center;
+        }
+        
+        .preview-container {
+            width: 100%;
+            height: calc(100vh - 50px);
+            position: relative;
+            background-color: #f5f5f5;
+        }
+        
+        .preview-iframe {
+            width: 100%;
+            height: 100%;
+            border: none;
+        }
+        
+        .loading-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: rgba(255, 255, 255, 0.8);
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            z-index: 50;
+        }
+        
+        .page-indicator {
+            position: absolute;
+            bottom: 10px;
+            left: 50%;
+            transform: translateX(-50%);
+            background-color: rgba(0, 0, 0, 0.6);
+            color: white;
+            padding: 5px 10px;
+            border-radius: 15px;
+            font-size: 14px;
+            z-index: 100;
+        }
+        
+        .nav-buttons {
+            position: absolute;
+            bottom: 10px;
+            right: 10px;
+            z-index: 100;
+            display: flex;
+            gap: 5px;
+        }
+        
+        .nav-buttons button {
+            background-color: rgba(255, 255, 255, 0.8);
+            border: 1px solid #ddd;
+            border-radius: 3px;
+            width: 36px;
+            height: 36px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+        }
+        
+        .nav-buttons button:hover {
+            background-color: rgba(255, 255, 255, 1);
+        }
+        
+        .error-container {
+            width: 100%;
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+            text-align: center;
+        }
+    </style>
+</head>
+<body>
+    <!-- Toolbar -->
+    <div id="toolbar">
+        <div class="toolbar-section">
+            <div class="d-flex align-items-center">
+                <!-- Document type icon -->
+                {% if file_type == 'docx' or file_type == 'doc' %}
+                <i class="bi bi-file-earmark-word text-primary me-2" style="font-size: 1.5rem;"></i>
+                {% elif file_type == 'xlsx' or file_type == 'xls' %}
+                <i class="bi bi-file-earmark-excel text-success me-2" style="font-size: 1.5rem;"></i>
+                {% elif file_type == 'pptx' or file_type == 'ppt' %}
+                <i class="bi bi-file-earmark-ppt text-danger me-2" style="font-size: 1.5rem;"></i>
+                {% else %}
+                <i class="bi bi-file-earmark-text me-2" style="font-size: 1.5rem;"></i>
+                {% endif %}
+                
+                <!-- Document title -->
+                <h5 class="m-0">{{ file_name }}</h5>
+            </div>
+        </div>
+        <div class="toolbar-section">
+            <!-- Close Button -->
+            <button id="close-btn" class="btn btn-sm btn-outline-secondary">
+                <i class="bi bi-x-lg"></i> Close
+            </button>
+        </div>
+    </div>
+    
+    <!-- Microsoft Graph Document Preview Container -->
+    <div class="preview-container">
+        <!-- Loading Overlay -->
+        <div id="loading-overlay" class="loading-overlay">
+            <div class="spinner-border text-primary mb-3" role="status">
+                <span class="visually-hidden">Loading document preview...</span>
+            </div>
+            <div id="loading-message">Loading document preview...</div>
+        </div>
+        
+        <!-- Microsoft Graph Preview -->
+        <iframe id="preview-iframe" class="preview-iframe" 
+                src="{{ preview_url }}" 
+                allowfullscreen></iframe>
+        
+        <!-- Page Indicator -->
+        <div class="page-indicator">
+            Page {{ page }}
+        </div>
+        
+        <!-- Navigation Buttons -->
+        <div class="nav-buttons">
+            <button id="prev-page-btn" title="Previous Page">
+                <i class="bi bi-chevron-left"></i>
+            </button>
+            <button id="next-page-btn" title="Next Page">
+                <i class="bi bi-chevron-right"></i>
+            </button>
+        </div>
+    </div>
+
+    <!-- JavaScript Libraries -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        // Current page tracking
+        let currentPage = {{ page }};
+        
+        // DOM Elements
+        const previewIframe = document.getElementById('preview-iframe');
+        const closeBtn = document.getElementById('close-btn');
+        const loadingOverlay = document.getElementById('loading-overlay');
+        const pageIndicator = document.querySelector('.page-indicator');
+        const prevPageBtn = document.getElementById('prev-page-btn');
+        const nextPageBtn = document.getElementById('next-page-btn');
+        
+        // Hide loading overlay after loading completes
+        previewIframe.addEventListener('load', function() {
+            // Hide loading overlay
+            loadingOverlay.style.display = 'none';
+        });
+        
+        // Fallback if the iframe takes too long
+        setTimeout(() => {
+            if (loadingOverlay.style.display !== 'none') {
+                loadingOverlay.style.display = 'none';
+            }
+        }, 10000);
+        
+        // Close the viewer (for when used in iframe)
+        closeBtn.addEventListener('click', function() {
+            if (window.parent && window.parent !== window) {
+                // Try to signal the parent window to close the modal
+                window.parent.postMessage('close-document-modal', '*');
+            } else {
+                // If no parent, just go back
+                window.history.back();
+            }
+        });
+        
+        // Handle page navigation
+        prevPageBtn.addEventListener('click', function() {
+            if (currentPage > 1) {
+                currentPage--;
+                updatePageIndicator();
+                // Note: In a real implementation, you would communicate with the iframe
+                // to navigate to the previous page, but this isn't possible with 
+                // the Microsoft Graph viewer without additional setup
+                alert(`Page navigation to page ${currentPage}. Note: This is a visual indicator only. The Microsoft Graph viewer handles its own navigation.`);
+            }
+        });
+        
+        nextPageBtn.addEventListener('click', function() {
+            currentPage++;
+            updatePageIndicator();
+            // Note: Same as above regarding communication with the iframe
+            alert(`Page navigation to page ${currentPage}. Note: This is a visual indicator only. The Microsoft Graph viewer handles its own navigation.`);
+        });
+        
+        function updatePageIndicator() {
+            pageIndicator.textContent = `Page ${currentPage}`;
+            
+            // Update URL with new page parameter (optional)
+            const url = new URL(window.location.href);
+            url.searchParams.set('page', currentPage);
+            window.history.replaceState({}, '', url.toString());
+        }
+        
+        // Handle errors in the iframe
+        previewIframe.addEventListener('error', function() {
+            // Replace iframe with error message
+            const previewContainer = document.querySelector('.preview-container');
+            previewContainer.innerHTML = `
+                <div class="error-container">
+                    <i class="bi bi-exclamation-triangle-fill text-danger" style="font-size: 3rem;"></i>
+                    <h4 class="mt-3">Error Loading Document</h4>
+                    <p class="text-muted">There was a problem loading the document preview.</p>
+                    <a href="/document-proxy?url={{ preview_url }}" class="btn btn-primary mt-3" download="{{ file_name }}">
+                        <i class="bi bi-download me-2"></i>Download Document
+                    </a>
+                </div>
+            `;
+        });
+    </script>
+</body>
+</html>

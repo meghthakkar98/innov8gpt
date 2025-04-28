@@ -1,0 +1,51 @@
+<!-- templates/index.html -->
+ 
+{% extends "base.html" %}
+{% block title %}
+    Home - {{ app_settings.app_title }}
+{% endblock %}
+{% block content %}
+
+<div class="text-center mt-5">
+    {% if app_settings.show_logo %}
+        <img src="{{ url_for('static', filename=app_settings.logo_path) }}"
+             alt="Logo"
+             height="100"
+             class="mb-4">
+    {% endif %}
+
+    {# 
+      1) Check user is logged in 
+      2) Check user has "roles"
+      3) Check user is either Admin or User
+    #}
+    {% if session.get('user') and session['user'].get('roles')
+          and ('Admin' in session['user']['roles'] or 'User' in session['user']['roles']) %}
+        <h2>Welcome to {{ app_settings.app_title }}</h2>
+        <div>
+            {{ landing_html | safe }}
+        </div>
+        <a href="{{ url_for('chats') }}" class="btn btn-primary btn-lg">
+            Start Chatting
+        </a>
+
+    {% else %}
+        {# The user is either not logged in or doesn't have the Admin/User roles #}
+        {% if session.get('user') %}
+            <h2>Welcome to {{ app_settings.app_title }}</h2>
+            <p class="lead">
+                You are logged in but do not have the required permissions to access this application.
+                Please submit a ticket to request access.
+            </p>
+        {% else %}
+            <h2>Welcome to {{ app_settings.app_title }}</h2>
+            <div>
+                {{ landing_html | safe }}
+            </div>
+            <p class="lead">
+                Please <a href="{{ url_for('login') }}">sign in</a> to continue.
+            </p>
+        {% endif %}
+    {% endif %}
+</div>
+{% endblock %}

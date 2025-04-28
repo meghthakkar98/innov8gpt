@@ -1,0 +1,260 @@
+<!-- templates/admin_safety_violations.html -->
+ 
+{% extends "base.html" %}
+{% block title %}
+  Admin Safety Violations - {{ app_settings.app_title }}
+{% endblock %}
+
+{% block content %}
+<div class="container">
+  <h2>Safety Violations</h2>
+  <p class="text-muted">
+    Review and manage safety violations reported by the system. Use the filters to narrow down the list.
+  </p>
+  <hr/>
+
+  <!-- FILTERS ROW -->
+  <div class="row mb-3">
+    <div class="col-md-4">
+      <label for="filterStatus" class="form-label">Filter by Status:</label>
+      <select id="filterStatus" class="form-select form-select-sm">
+        <option value="">(All)</option>
+        <option value="New">New</option>
+        <option value="In-Review">In-Review</option>
+        <option value="Resolved">Resolved</option>
+        <option value="Dismissed">Dismissed</option>
+      </select>
+    </div>
+    <div class="col-md-4">
+      <label for="filterAction" class="form-label">Filter by Action:</label>
+      <select id="filterAction" class="form-select form-select-sm">
+        <option value="">(All)</option>
+        <option value="None">None</option>
+        <option value="WarnUser">WarnUser</option>
+        <option value="SuspendUser">SuspendUser</option>
+        <option value="Escalate">Escalate</option>
+        <option value="BlockUser">BlockUser</option>
+      </select>
+    </div>
+  </div>
+
+  <!-- Safety Violations Table -->
+  <table class="table table-striped" id="safetyLogsTable">
+    <thead>
+      <tr>
+        <!-- ID is intentionally hidden, but we keep the rest read-only in the table. -->
+        <th>User ID</th>
+        <th>Message</th>
+        <th>Triggered Categories</th>
+        <th>Current Status</th>
+        <th>Action</th>
+        <th>Notes</th>
+        <th>Created</th>
+        <th>Last Updated</th>
+        <th>Edit</th>
+      </tr>
+    </thead>
+    <tbody>
+      <!-- Populated by JS -->
+    </tbody>
+  </table>
+</div>
+
+<!-- ===== Modal for Editing a Single Violation ===== -->
+<div class="modal fade" id="editModal" tabindex="-1" aria-labelledby="editModalLabel" aria-hidden="true">
+  <div class="modal-dialog modal-lg modal-dialog-scrollable">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="editModalLabel">Edit Violation</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+
+        <!-- Read-only fields as plain text -->
+        <div class="mb-3">
+          <label class="form-label fw-bold">User ID:</label>
+          <p id="editUserId" class="form-control-plaintext"></p>
+        </div>
+
+        <div class="mb-3">
+          <label class="form-label fw-bold">Message:</label>
+          <p
+            id="editMessage"
+            class="form-control-plaintext"
+            style="white-space: pre-wrap;"
+          ></p>
+        </div>
+
+        <div class="mb-3">
+          <label class="form-label fw-bold">Triggered Categories:</label>
+          <p
+            id="editCategories"
+            class="form-control-plaintext"
+            style="white-space: pre-wrap;"
+          ></p>
+        </div>
+
+        <!-- Editable fields: Status, Action, Notes -->
+        <div class="mb-3">
+          <label class="form-label fw-bold">Status:</label>
+          <select class="form-select" id="editStatus">
+            <option value="New">New</option>
+            <option value="In-Review">In-Review</option>
+            <option value="Resolved">Resolved</option>
+            <option value="Dismissed">Dismissed</option>
+          </select>
+        </div>
+
+        <div class="mb-3">
+          <label class="form-label fw-bold">Action:</label>
+          <select class="form-select" id="editAction">
+            <option value="None">None</option>
+            <option value="WarnUser">WarnUser</option>
+            <option value="SuspendUser">SuspendUser</option>
+            <option value="Escalate">Escalate</option>
+            <option value="BlockUser">BlockUser</option>
+          </select>
+        </div>
+
+        <div class="mb-3">
+          <label class="form-label fw-bold">Notes:</label>
+          <textarea class="form-control" id="editNotes" rows="3"></textarea>
+        </div>
+
+        <!-- Hidden field for log ID -->
+        <input type="hidden" id="editLogId" />
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+        <button type="button" id="saveChangesBtn" class="btn btn-primary">Save Changes</button>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  // The sets below are used to populate the dropdowns in the modal
+  const statusOptions = ["New", "In-Review", "Resolved", "Dismissed"];
+  const actionOptions = ["None", "WarnUser", "SuspendUser", "Escalate", "BlockUser"];
+
+  let table;
+
+  $(document).ready(function() {
+    // 1) Fetch logs from the backend
+    $.get("/api/safety/logs", function(data) {
+      const logs = data.logs || [];
+      const tableBody = $("#safetyLogsTable tbody");
+
+      logs.forEach(log => {
+        const row = $("<tr></tr>").data("logId", log.id);
+
+        // Build each cell
+        const userCell    = $("<td></td>").text(log.user_id || "");
+        const messageCell = $("<td></td>").text(log.message || "");
+        const categories  = (log.triggered_categories || [])
+                              .map(cat => `${cat.category}(s=${cat.severity})`)
+                              .join(", ");
+        const catCell     = $("<td></td>").text(categories);
+        const statusCell  = $("<td></td>").text(log.status || "New");
+        const actionCell  = $("<td></td>").text(log.action || "None");
+        const notesCell   = $("<td></td>").text(log.notes || "");
+        const createdVal  = log.created_at ? new Date(log.created_at).toLocaleString() : "";
+        const createdCell = $("<td></td>").text(createdVal);
+        const updatedVal  = log.last_updated ? new Date(log.last_updated).toLocaleString() : "";
+        const updatedCell = $("<td></td>").text(updatedVal);
+
+        // Edit button
+        const editBtn = $("<button class='btn btn-primary btn-sm'>Edit</button>");
+        editBtn.click(function() {
+          // Open the modal & populate fields
+          $("#editLogId").val(log.id);
+
+          // Update read-only fields with .text(...)
+          $("#editUserId").text(log.user_id || "");
+          $("#editMessage").text(log.message || "");
+          $("#editCategories").text(categories || "");
+
+          // Editable fields
+          $("#editStatus").val(log.status || "New");
+          $("#editAction").val(log.action || "None");
+          $("#editNotes").val(log.notes || "");
+
+          $("#editModal").modal("show");
+        });
+        const editCell = $("<td></td>").append(editBtn);
+
+        // Append cells to row
+        row.append(userCell);
+        row.append(messageCell);
+        row.append(catCell);
+        row.append(statusCell);
+        row.append(actionCell);
+        row.append(notesCell);
+        row.append(createdCell);
+        row.append(updatedCell);
+        row.append(editCell);
+
+        tableBody.append(row);
+      });
+
+      // 2) Initialize DataTable
+      table = $("#safetyLogsTable").DataTable({
+        responsive: true
+      });
+
+      // 3) Add filtering logic
+      $.fn.dataTable.ext.search.push(function(settings, rowData) {
+        const rowStatus = rowData[3] || "";
+        const rowActions = rowData[2] || "";
+
+        const selectedStatus = $("#filterStatus").val();
+        const selectedAction = $("#filterAction").val();
+
+        if (selectedStatus && rowStatus !== selectedStatus) {
+          return false;
+        }
+        if (selectedAction && !rowActions.includes(selectedAction)) {
+          return false;
+        }
+        return true;
+      });
+
+      $("#filterStatus, #filterAction").on("change", function() {
+        table.draw();
+      });
+    });
+
+    // Handle the "Save Changes" button in the modal
+    $("#saveChangesBtn").click(function() {
+      const logId     = $("#editLogId").val();
+      const newStatus = $("#editStatus").val();
+      const newAction = $("#editAction").val();
+      const newNotes  = $("#editNotes").val();
+
+      // Patch request
+      $.ajax({
+        url: "/api/safety/logs/" + logId,
+        type: "PATCH",
+        contentType: "application/json",
+        data: JSON.stringify({
+          status: newStatus,
+          action: newAction,
+          notes: newNotes
+        }),
+        success: function() {
+          alert("Updated successfully.");
+          // Close the modal
+          $("#editModal").modal("hide");
+          // Reload the page to refresh the table
+          location.reload();
+        },
+        error: function(err) {
+          alert("Error updating: " + JSON.stringify(err));
+        }
+      });
+    });
+  });
+</script>
+{% endblock %}

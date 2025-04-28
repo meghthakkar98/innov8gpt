@@ -1,0 +1,300 @@
+<!-- templates/office_document_viewer.html -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ file_name }} - Document Viewer</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.8.1/font/bootstrap-icons.css" rel="stylesheet">
+    <style>
+        html, body {
+            height: 100%;
+            margin: 0;
+            padding: 0;
+            overflow: hidden;
+        }
+        
+        #toolbar {
+            height: 50px;
+            background-color: #f1f1f1;
+            display: flex;
+            align-items: center;
+            padding: 0 20px;
+            border-bottom: 1px solid #ddd;
+            position: relative;
+            z-index: 10;
+            justify-content: space-between;
+        }
+        
+        .toolbar-section {
+            display: flex;
+            align-items: center;
+        }
+        
+        .viewer-container {
+            width: 100%;
+            height: calc(100vh - 50px);
+            position: relative;
+        }
+        
+        .viewer-iframe {
+            width: 100%;
+            height: 100%;
+            border: none;
+        }
+        
+        .viewer-nav {
+            display: flex;
+            flex-direction: column;
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            z-index: 100;
+            background-color: rgba(255, 255, 255, 0.8);
+            border-radius: 5px;
+            padding: 10px;
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2);
+        }
+        
+        .loading-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: rgba(255, 255, 255, 0.8);
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            z-index: 50;
+        }
+        
+        .viewer-nav button {
+            margin-bottom: 5px;
+        }
+        
+        .page-indicator {
+            position: absolute;
+            bottom: 10px;
+            left: 50%;
+            transform: translateX(-50%);
+            background-color: rgba(0, 0, 0, 0.6);
+            color: white;
+            padding: 5px 10px;
+            border-radius: 15px;
+            font-size: 14px;
+            z-index: 100;
+        }
+    </style>
+</head>
+<body>
+    <!-- Toolbar -->
+    <div id="toolbar">
+        <div class="toolbar-section">
+            <h5 class="m-0">{{ file_name }}</h5>
+        </div>
+        <div class="toolbar-section">
+            <!-- Switch Viewer Button -->
+            <button id="switch-viewer-btn" class="btn btn-sm btn-outline-secondary me-2">
+                <i class="bi bi-arrow-repeat"></i> Try Alternative Viewer
+            </button>
+            
+            <!-- Download Button -->
+            <a id="download-btn" href="{{ public_url }}" class="btn btn-sm btn-outline-primary me-2" download="{{ file_name }}">
+                <i class="bi bi-download"></i> Download
+            </a>
+            
+            <!-- Close Button -->
+            <button id="close-btn" class="btn btn-sm btn-outline-danger">
+                <i class="bi bi-x-lg"></i> Close
+            </button>
+        </div>
+    </div>
+    
+    <!-- Main Viewer Container -->
+    <div class="viewer-container">
+        <!-- Loading Overlay -->
+        <div id="loading-overlay" class="loading-overlay">
+            <div class="spinner-border text-primary mb-3" role="status">
+                <span class="visually-hidden">Loading...</span>
+            </div>
+            <div id="loading-message">Loading document...</div>
+        </div>
+        
+        <!-- Microsoft Office Online Viewer -->
+        <iframe id="office-viewer" class="viewer-iframe" 
+                src="{{ office_online_url }}" 
+                allowfullscreen></iframe>
+        
+        <!-- Google Docs Viewer (initially hidden) -->
+        <iframe id="google-viewer" class="viewer-iframe" 
+                src="{{ google_docs_url }}" 
+                style="display: none;"
+                allowfullscreen></iframe>
+        
+        <!-- Page Indicator -->
+        <div class="page-indicator">
+            Page {{ page }}
+        </div>
+        
+        <!-- Viewer Navigation -->
+        <div class="viewer-nav">
+            <button id="go-to-page-btn" class="btn btn-sm btn-light" title="Go to Page">
+                <i class="bi bi-layout-text-window"></i>
+            </button>
+            <button id="zoom-in-btn" class="btn btn-sm btn-light" title="Zoom In">
+                <i class="bi bi-zoom-in"></i>
+            </button>
+            <button id="zoom-out-btn" class="btn btn-sm btn-light" title="Zoom Out">
+                <i class="bi bi-zoom-out"></i>
+            </button>
+        </div>
+    </div>
+    
+    <!-- Modal for "Go to Page" -->
+    <div class="modal fade" id="go-to-page-modal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-sm">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Go to Page</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label for="page-number-input" class="form-label">Page Number:</label>
+                        <input type="number" class="form-control" id="page-number-input" min="1" value="{{ page }}">
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="button" class="btn btn-primary" id="go-to-page-confirm">Go</button>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- JavaScript Libraries -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        // Current viewer state
+        let currentViewer = 'office';
+        let pageNumber = {{ page }};
+        
+        // DOM Elements
+        const officeViewer = document.getElementById('office-viewer');
+        const googleViewer = document.getElementById('google-viewer');
+        const switchViewerBtn = document.getElementById('switch-viewer-btn');
+        const closeBtn = document.getElementById('close-btn');
+        const loadingOverlay = document.getElementById('loading-overlay');
+        const loadingMessage = document.getElementById('loading-message');
+        const goToPageBtn = document.getElementById('go-to-page-btn');
+        const zoomInBtn = document.getElementById('zoom-in-btn');
+        const zoomOutBtn = document.getElementById('zoom-out-btn');
+        
+        // Hide loading overlay after loading completes
+        window.addEventListener('load', function() {
+            // Set a timeout because sometimes the loading event fires before the document is fully rendered
+            setTimeout(() => {
+                loadingOverlay.style.display = 'none';
+            }, 5000);
+        });
+        
+        // Fallback if the iframe takes too long
+        setTimeout(() => {
+            if (loadingOverlay.style.display !== 'none') {
+                loadingOverlay.style.display = 'none';
+                loadingMessage.textContent = 'Document loaded but may be limited by browser security settings.';
+                loadingOverlay.style.backgroundColor = 'rgba(255, 255, 0, 0.2)';
+                loadingOverlay.style.display = 'flex';
+                
+                // Auto-fade the warning after a few seconds
+                setTimeout(() => {
+                    loadingOverlay.style.display = 'none';
+                }, 4000);
+            }
+        }, 8000);
+        
+        // Switch between viewers
+        switchViewerBtn.addEventListener('click', function() {
+            if (currentViewer === 'office') {
+                // Switch to Google Docs viewer
+                officeViewer.style.display = 'none';
+                googleViewer.style.display = 'block';
+                currentViewer = 'google';
+                switchViewerBtn.innerHTML = '<i class="bi bi-arrow-repeat"></i> Try Microsoft Viewer';
+                
+                // Show loading again for the new viewer
+                loadingMessage.textContent = 'Loading Google Docs viewer...';
+                loadingOverlay.style.display = 'flex';
+            } else {
+                // Switch to Microsoft Office Online viewer
+                googleViewer.style.display = 'none';
+                officeViewer.style.display = 'block';
+                currentViewer = 'office';
+                switchViewerBtn.innerHTML = '<i class="bi bi-arrow-repeat"></i> Try Google Viewer';
+                
+                // Show loading again for the new viewer
+                loadingMessage.textContent = 'Loading Microsoft Office viewer...';
+                loadingOverlay.style.display = 'flex';
+            }
+        });
+        
+        // Close the viewer (for when used in iframe)
+        closeBtn.addEventListener('click', function() {
+            if (window.parent && window.parent !== window) {
+                // Try to signal the parent window to close the modal
+                window.parent.postMessage('close-document-modal', '*');
+            } else {
+                // If no parent, just go back
+                window.history.back();
+            }
+        });
+        
+        // Initialize "Go to Page" modal
+        const goToPageModal = new bootstrap.Modal(document.getElementById('go-to-page-modal'));
+        
+        // Open the "Go to Page" modal
+        goToPageBtn.addEventListener('click', function() {
+            document.getElementById('page-number-input').value = pageNumber;
+            goToPageModal.show();
+        });
+        
+        // Handle "Go to Page" confirmation
+        document.getElementById('go-to-page-confirm').addEventListener('click', function() {
+            const newPage = parseInt(document.getElementById('page-number-input').value);
+            if (newPage && newPage > 0) {
+                // In a real implementation, we would navigate to the specific page
+                // For Office/Google viewers, this isn't directly possible through the iframe
+                pageNumber = newPage;
+                document.querySelector('.page-indicator').textContent = `Page ${pageNumber}`;
+                
+                // Close the modal
+                goToPageModal.hide();
+                
+                // Update the page in the URL if possible
+                try {
+                    const url = new URL(window.location.href);
+                    url.searchParams.set('page', pageNumber);
+                    window.history.replaceState({}, document.title, url.toString());
+                } catch (e) {
+                    console.error('Error updating URL', e);
+                }
+                
+                // Display a notification
+                alert(`Navigated to page ${pageNumber}. Note: External viewers may have limited page navigation capabilities.`);
+            }
+        });
+        
+        // Handle zoom buttons (for demonstration - actual functionality depends on viewer capabilities)
+        zoomInBtn.addEventListener('click', function() {
+            alert('Zoom functionality depends on the document viewer capabilities.');
+        });
+        
+        zoomOutBtn.addEventListener('click', function() {
+            alert('Zoom functionality depends on the document viewer capabilities.');
+        });
+    </script>
+</body>
+</html>

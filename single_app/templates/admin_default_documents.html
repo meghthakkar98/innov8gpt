@@ -1,0 +1,237 @@
+<!-- templates/admin_default_documents.html -->
+{% extends "base.html" %}
+{% block title %}
+    Default Documents - {{ app_settings.app_title }}
+{% endblock %}
+
+{% block content %}
+<div class="container">
+    <h2>General Documents</h2>
+    <p class="text-muted">
+        Manage General documents that are available to all users. These documents will be included in document search results for all users.
+    </p>
+
+    <!-- Document Upload Form -->
+    <div class="card p-3 my-3">
+        <h5>Upload a General Document</h5>
+        <p class="text-muted">
+            Upload a document to make it available to all users. 
+        </p>
+        <div class="mb-3">
+            <input type="file" id="file-input" class="form-control" />
+            <button id="upload-btn" class="btn btn-primary mt-2">Upload Document</button>
+        </div>
+    </div>
+
+    <!-- Default Documents List -->
+    <div class="card p-3 my-3">
+        <h5>General Documents</h5>
+        <table class="table table-striped" id="default-documents-table">
+            <thead>
+                <tr>
+                    <th>File Name</th>
+                    <th>Upload Date</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                <!-- Documents will be populated here -->
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<!-- Loading Modal -->
+<div class="modal fade" id="loadingModal" tabindex="-1" aria-labelledby="loadingModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content text-center">
+            <div class="modal-body">
+                <div class="spinner-border text-primary" role="status">
+                    <span class="visually-hidden">Loading...</span>
+                </div>
+                <p class="mt-3">Uploading document, please wait...</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Toast container -->
+<div class="toast-container position-fixed top-0 end-0 p-3" id="toast-container"></div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+// Initialize Bootstrap modal
+let loadingModal;
+
+document.addEventListener('DOMContentLoaded', function() {
+    // Correctly initialize the modal
+    const modalElement = document.getElementById('loadingModal');
+    loadingModal = new bootstrap.Modal(modalElement);
+    
+    fetchDefaultDocuments();
+    
+    // Set up event listeners
+    const uploadBtn = document.getElementById('upload-btn');
+    if (uploadBtn) {
+        uploadBtn.addEventListener('click', uploadDefaultDocument);
+    }
+});
+
+function fetchDefaultDocuments() {
+    fetch('/api/default_documents')
+        .then(response => {
+            if (!response.ok) {
+                throw new Error(`HTTP error ${response.status}`);
+            }
+            return response.json();
+        })
+        .then(data => {
+            const tableBody = document.querySelector('#default-documents-table tbody');
+            tableBody.innerHTML = '';
+            
+            if (data.documents && data.documents.length > 0) {
+                data.documents.forEach(doc => {
+                    const row = document.createElement('tr');
+                    row.innerHTML = `
+                        <td>${doc.file_name}</td>
+                        <td>${new Date(doc.upload_date).toLocaleString()}</td>
+                        <td>
+                            <button class="btn btn-sm btn-danger" onclick="deleteDefaultDocument('${doc.id}')">Delete</button>
+                        </td>
+                    `;
+                    tableBody.appendChild(row);
+                });
+            } else {
+                const row = document.createElement('tr');
+                row.innerHTML = `<td colspan="3" class="text-center">No default documents found</td>`;
+                tableBody.appendChild(row);
+            }
+        })
+        .catch(error => {
+            console.error('Error fetching default documents:', error);
+            showToast('Failed to load default documents: ' + error.message, 'danger');
+        });
+}
+
+function uploadDefaultDocument() {
+    const fileInput = document.getElementById('file-input');
+    const file = fileInput.files[0];
+    
+    if (!file) {
+        showToast('Please select a file to upload', 'warning');
+        return;
+    }
+    
+    // Log file details for debugging
+    console.log('Uploading file:', file.name, 'Size:', file.size, 'Type:', file.type);
+    
+    const formData = new FormData();
+    formData.append('file', file);
+    
+    // Show loading modal
+    loadingModal.show();
+    console.log('Loading modal shown');
+    
+    // Add a timeout to make sure the modal is displayed
+    setTimeout(() => {
+        fetch('/api/default_documents/upload', {
+            method: 'POST',
+            body: formData,
+            // Don't set Content-Type header - browser will set it with boundary
+            // credentials: 'same-origin'  // Include credentials if needed
+        })
+        .then(async response => {
+            console.log('Upload response status:', response.status);
+            
+            // Get the raw text first to see what's coming back
+            const responseText = await response.text();
+            console.log('Raw response:', responseText);
+            
+            // Try to parse as JSON if possible
+            let data;
+            try {
+                data = JSON.parse(responseText);
+            } catch (e) {
+                console.error('Error parsing response as JSON:', e);
+                throw new Error('Server returned an invalid response');
+            }
+            
+            // Check for errors in the parsed JSON
+            if (!response.ok) {
+                throw new Error(data.error || `Server returned status ${response.status}`);
+            }
+            
+            return data;
+        })
+        .then(data => {
+            console.log('Upload success:', data);
+            loadingModal.hide();
+            showToast('Document uploaded successfully', 'success');
+            fileInput.value = ''; // Clear the file input
+            fetchDefaultDocuments(); // Refresh the document list
+        })
+        .catch(error => {
+            console.error('Error uploading document:', error);
+            loadingModal.hide();
+            showToast('Failed to upload document: ' + error.message, 'danger');
+        });
+    }, 100); // Short delay to ensure modal displays
+}
+
+function deleteDefaultDocument(documentId) {
+    if (!confirm('Are you sure you want to delete this document? This action cannot be undone.')) {
+        return;
+    }
+    
+    fetch(`/api/default_documents/${documentId}`, {
+        method: 'DELETE'
+    })
+    .then(response => {
+        if (!response.ok) {
+            return response.json().then(data => {
+                throw new Error(data.error || `HTTP error ${response.status}`);
+            });
+        }
+        return response.json();
+    })
+    .then(data => {
+        showToast('Document deleted successfully', 'success');
+        fetchDefaultDocuments(); // Refresh the document list
+    })
+    .catch(error => {
+        console.error('Error deleting document:', error);
+        showToast('Failed to delete document: ' + error.message, 'danger');
+    });
+}
+
+function showToast(message, type = 'info') {
+    const toastContainer = document.getElementById('toast-container');
+    
+    const toastEl = document.createElement('div');
+    toastEl.className = `toast align-items-center text-white bg-${type} border-0`;
+    toastEl.role = 'alert';
+    toastEl.setAttribute('aria-live', 'assertive');
+    toastEl.setAttribute('aria-atomic', 'true');
+    
+    toastEl.innerHTML = `
+        <div class="d-flex">
+            <div class="toast-body">
+                ${message}
+            </div>
+            <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast" aria-label="Close"></button>
+        </div>
+    `;
+    
+    toastContainer.appendChild(toastEl);
+    
+    const toast = new bootstrap.Toast(toastEl, { delay: 5000 });
+    toast.show();
+    
+    // Remove the toast after it's hidden
+    toastEl.addEventListener('hidden.bs.toast', function() {
+        toastEl.remove();
+    });
+}
+</script>
+{% endblock %}

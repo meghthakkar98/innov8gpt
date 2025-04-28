@@ -1,0 +1,470 @@
+/* css/chats.css */
+
+/* Custom styles for the Conversations List */
+#conversations-list,
+#conversations-list-offcanvas {
+  max-height: 80vh;
+  overflow-y: auto;
+}
+
+.conversation-item {
+  cursor: pointer;
+  padding: 10px;
+  border-bottom: 1px solid #dee2e6;
+  color: #212529;
+  /* Set default text color to dark grey */
+  background-color: #ffffff;
+  /* Optional: Set default background to white */
+}
+
+.conversation-item:hover,
+.conversation-item.active {
+  background-color: #f8f9fa;
+  /* Light grey background for hover and active */
+  color: #212529;
+  /* Dark grey text for better contrast */
+}
+
+/* Chatbox styling */
+#chatbox {
+  padding: 15px;
+  overflow-y: auto;
+  flex-grow: 1;
+  background-color: #ffffff; /* Optional: light background color for the chat area */
+}
+
+.chat-container {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+/* Show the delete button only on hover */
+.conversation-item .delete-btn {
+  display: none;
+}
+
+.conversation-item:hover .delete-btn {
+  display: inline-block;
+}
+
+/* Position the delete button to the right */
+.conversation-item {
+  position: relative;
+}
+
+.conversation-item .delete-btn {
+  position: absolute;
+  right: 10px;
+  top: 50%;
+  transform: translateY(-50%);
+}
+
+/* Style for the cited text content */
+#cited-text-content {
+  white-space: pre-wrap;
+  word-wrap: break-word;
+  font-family: inherit;
+  font-size: 1rem;
+  line-height: 1.5;
+}
+
+/* Optional: Style the modal title for emphasis */
+.modal-title {
+  font-weight: bold;
+  font-size: 1.25rem;
+}
+
+/* Custom scrollbar for modal body */
+.modal-body::-webkit-scrollbar {
+  width: 8px;
+}
+
+.modal-body::-webkit-scrollbar-track {
+  background: #f1f1f1;
+}
+
+.modal-body::-webkit-scrollbar-thumb {
+  background: #888;
+  border-radius: 4px;
+}
+
+.modal-body::-webkit-scrollbar-thumb:hover {
+  background: #555;
+}
+
+a.citation-link {
+  color: #0d6efd;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+a.citation-link:hover {
+  color: #0a58ca;
+  text-decoration: none;
+}
+
+/* Loading indicator styling */
+.loading-indicator {
+  display: flex;
+  align-items: center;
+  color: #888;
+  margin-bottom: 1rem;
+}
+
+.loading-indicator .spinner-border {
+  width: 1.5rem;
+  height: 1.5rem;
+  margin-right: 0.5rem;
+}
+
+/* Styles for the search button */
+.search-btn {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  transition: all 0.3s ease;
+  overflow: hidden;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* Hide the text initially */
+.search-btn .search-btn-text {
+  opacity: 0;
+  width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  transition: all 0.3s ease;
+}
+
+/* When the button is active */
+.search-btn.active {
+  width: auto;
+  border-radius: 20px;
+  /* Less rounded when expanded */
+  padding: 0 15px;
+}
+
+/* Show the text when active */
+.search-btn.active .search-btn-text {
+  opacity: 1;
+  width: auto;
+  margin-left: 8px;
+}
+
+/* Change button style when active */
+.search-btn.active {
+  background-color: #0d6efd;
+  color: #fff;
+  border-color: #0d6efd;
+}
+
+/* Update the icon and text color when active */
+.search-btn.active i,
+.search-btn.active .search-btn-text {
+  color: #fff;
+}
+
+/* Set icon color when not active */
+.search-btn i {
+  color: #0d6efd;
+  /* Bootstrap primary color */
+}
+
+/* Styles for the file button */
+.file-btn {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  transition: all 0.3s ease;
+  overflow: hidden;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* Hide the text initially */
+.file-btn .file-btn-text {
+  opacity: 0;
+  width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  transition: all 0.3s ease;
+}
+
+/* When the button is active (after file selection) */
+.file-btn.active {
+  width: auto;
+  border-radius: 20px;
+  padding: 0 15px;
+}
+
+.file-btn.active .file-btn-text {
+  opacity: 1;
+  width: auto;
+  margin-left: 8px;
+}
+
+/* Change button style when active */
+.file-btn.active {
+  background-color: #0d6efd;
+  color: #fff;
+  border-color: #0d6efd;
+}
+
+.file-btn.active i,
+.file-btn.active .file-btn-text {
+  color: #fff;
+}
+
+/* Set icon color when not active */
+.file-btn i {
+  color: #0d6efd;
+}
+
+.btn-outline-secondary:hover {
+  background-color: #e0e0e0; /* Light grey */
+  border-color: #e0e0e0;
+}
+
+/* Ensure the icon color remains readable */
+.btn-outline-secondary:hover .bi {
+  color: #000; /* Black icon color */
+}
+
+/* Ensure button text color remains black on hover */
+.btn-outline-secondary:hover,
+.btn-outline-secondary:hover .search-btn-text,
+.btn-outline-secondary:hover .file-btn-text {
+  color: #000; /* Black text color */
+}
+
+/* Message container */
+.message {
+  display: flex;
+  width: 100%;
+  margin-bottom: 10px;
+}
+
+/* User messages aligned to the right */
+.user-message {
+  justify-content: flex-end;
+}
+
+/* AI messages aligned to the left */
+.ai-message {
+  justify-content: flex-start;
+}
+
+.ai-message .message-text img.generated-image {
+  max-width: 25%;
+  height: auto;
+}
+
+/* Message bubble */
+.message-bubble {
+  max-width: 90%;
+  width: auto;
+  padding: 10px;
+  border-radius: 15px;
+  position: relative;
+}
+
+/* User message bubble styling */
+.user-message .message-bubble {
+  background-color: #c8e0fa;
+  color: black;
+  border-bottom-right-radius: 0;
+}
+
+/* AI message bubble styling */
+.ai-message .message-bubble {
+  background-color: #f1f0f0;
+  color: black;
+  border-bottom-left-radius: 0;
+}
+
+/* File message bubble styling */
+.file-message .message-bubble {
+  background-color: #e8f5e9;
+  color: black;
+  border-bottom-right-radius: 0;
+}
+
+/* Sender label */
+.message-sender {
+  font-size: 12px;
+  font-weight: bold;
+  margin-bottom: 5px;
+}
+
+/* Message text */
+.message-text {
+  white-space: normal; /* Change from pre-wrap to normal */
+  word-wrap: break-word;
+  line-height: 1.5; /* Adjust line height as needed */
+}
+
+/* Optional: Style links within messages */
+.message-text a {
+  color: #0d6efd;
+  text-decoration: underline;
+}
+
+.message-text a:hover {
+  color: #0a58ca;
+  text-decoration: none;
+}
+
+/* Reset margins for paragraphs */
+.message-text p {
+  margin-top: 0;
+  margin-bottom: 0.5em; /* Adjust as needed */
+}
+
+/* Reset margins for lists */
+.message-text ul,
+.message-text ol {
+  margin-top: 0;
+  margin-bottom: 0.5em; /* Adjust as needed */
+  padding-left: 1.5em; /* Maintain indentation */
+}
+
+/* Reset margins for list items */
+.message-text li {
+  margin-top: 0;
+  margin-bottom: 0.25em; /* Adjust as needed */
+}
+
+.message-content {
+  display: flex;
+  align-items: flex-end;
+}
+
+.message-content.flex-row-reverse {
+  flex-direction: row-reverse;
+}
+
+/* Avatar styling */
+.avatar {
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  object-fit: cover;
+}
+
+.user-message .avatar {
+  margin-left: 10px;
+}
+
+.ai-message .avatar {
+  margin-right: 10px;
+}
+
+.file-message {
+  justify-content: flex-end;
+}
+
+/* Style code blocks */
+pre code {
+  background-color: #f8f9fa;
+  padding: 0.5em;
+  display: block;
+  border-radius: 4px;
+  overflow-x: auto;
+}
+
+/* Style blockquotes */
+blockquote {
+  border-left: 4px solid #dee2e6;
+  padding-left: 1em;
+  color: #6c757d;
+}
+
+/* Style lists */
+ul,
+ol {
+  margin-left: 1.5em;
+}
+
+.feedback-btn {
+  transition: transform 0.2s ease, color 0.4s ease;
+}
+
+.feedback-btn.clicked {
+  color: #0d6efd !important;
+  transform: scale(1.2);
+}
+
+.feedback-btn.clicked.fade-back {
+  color: #6c757d;  /* original text-muted color */
+  transform: scale(1.0);
+}
+
+.formatted-content {
+  font-size: 14px;
+  line-height: 1.5;
+  color: #333;
+}
+
+.formatted-content p {
+  margin-bottom: 0.75rem;
+  text-align: justify;
+}
+
+.formatted-content h5 {
+  font-weight: 600;
+  color: #212529;
+}
+
+
+
+.document-formatted {
+  font-family: 'Arial', sans-serif;
+  font-size: 14px;
+  line-height: 1.5;
+  padding: 15px;
+  background-color: #f9f9f9;
+  border: 1px solid #eee;
+  border-radius: 4px;
+  max-height: 70vh;
+  overflow-y: auto;
+}
+
+.document-formatted p {
+  margin-bottom: 1em;
+}
+
+.document-formatted .mt-3 {
+  margin-top: 1em;
+}
+
+.document-formatted {
+  font-family: Arial, sans-serif;
+  font-size: 14px;
+  line-height: 1.6;
+  padding: 20px;
+  color: #333;
+  max-height: 70vh;
+  overflow-y: auto;
+}
+
+.document-heading {
+  font-weight: bold;
+  font-size: 16px;
+  margin-top: 20px;
+  margin-bottom: 10px;
+  color: #000;
+  padding-bottom: 5px;
+  border-bottom: 1px solid #ddd;
+}
+
+.document-paragraph {
+  margin-bottom: 16px;
+  text-align: justify;
+  text-indent: 20px;
+}

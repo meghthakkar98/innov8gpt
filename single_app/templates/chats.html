@@ -1,0 +1,472 @@
+<!-- templates/chats.html -->
+
+{% extends "base.html" %}
+{% block title %}
+    Chats - {{ app_settings.app_title }}
+{% endblock %}
+
+{% block head %}
+    <link rel="stylesheet" href="/static/css/chats.css">
+    <!-- Citation styling -->
+    <style>
+        /* Citation references in chat */
+        .citation-reference {
+            margin: 8px 0;
+            padding: 6px 10px;
+            background-color: #f8f9fa;
+            border-left: 3px solid #0d6efd;
+            border-radius: 3px;
+        }
+
+        .citation-source {
+            display: block;
+            margin-bottom: 4px;
+            color: #495057;
+        }
+
+        .citation-links {
+            display: block;
+            margin-top: 5px;
+        }
+
+        .citation-link {
+            display: inline-block;
+            padding: 3px 8px;
+            margin: 2px 3px;
+            background-color: #e9f2ff;
+            border: 1px solid #b8daff;
+            border-radius: 3px;
+            color: #0d6efd;
+            font-size: 0.9em;
+            text-decoration: none;
+            transition: all 0.2s;
+        }
+
+        .citation-link:hover {
+            background-color: #d1e7ff;
+            color: #0056b3;
+            text-decoration: none;
+        }
+
+        .citation-link i {
+            margin-right: 3px;
+        }
+
+        /* Document viewer styling */
+        .document-viewer-container {
+            width: 100%;
+            height: 85vh;
+            overflow: hidden;
+            background-color: #454545;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        #citation-modal .modal-content {
+            border-radius: 0;
+        }
+
+        #citation-modal .modal-header {
+            background-color: #f8f9fa;
+            border-bottom: 1px solid #dee2e6;
+            padding: 0.5rem 1rem;
+        }
+
+        #citation-modal .modal-body {
+            padding: 0;
+            overflow: hidden;
+        }
+
+        #citation-modal .modal-dialog {
+            max-width: 95%;
+            margin: 10px auto;
+        }
+
+        /* PDF toolbar styling */
+        .pdf-toolbar {
+            background-color: #f1f1f1;
+            padding: 5px 10px;
+            display: flex;
+            align-items: center;
+            border-bottom: 1px solid #ddd;
+        }
+
+        .pdf-toolbar .page-controls {
+            display: flex;
+            align-items: center;
+            margin-right: 20px;
+        }
+
+        .pdf-toolbar button {
+            background: none;
+            border: none;
+            cursor: pointer;
+            font-size: 1.2rem;
+            padding: 0 10px;
+        }
+
+        .pdf-toolbar .page-info {
+            margin: 0 10px;
+        }
+
+        .pdf-toolbar .zoom-controls {
+            display: flex;
+            align-items: center;
+        }
+    </style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid" style="height: calc(100vh - 66px);">
+    <div class="row h-100">
+        <!-- Left Pane: Conversations List -->
+        <div class="col-md-3 border-end">
+            <div class="d-flex justify-content-between align-items-center p-3">
+                <h5>Conversations</h5>
+                <button class="btn btn-primary btn-sm" id="new-conversation-btn">New</button>
+            </div>
+            <div id="conversations-list" class="list-group list-group-flush">
+                <!-- Conversations will be dynamically loaded here -->
+            </div>
+        </div>
+        <!-- Right Pane: Chat Interface -->
+        <div class="col-md-9 d-flex flex-column chat-container">
+            <div class="p-3">
+                <h5 id="current-conversation-title">Start typing to create a new conversation or select one on the left</h5>
+            </div>
+            <div id="chatbox" class="flex-grow-1 p-3" style="overflow-y: auto">
+                <!-- Chat messages will be dynamically loaded here -->
+            </div>
+            <!-- User Input and Send Button -->
+            <div class="p-3">
+                <!-- First Row: Search Documents and File Upload -->
+                <div class="d-flex align-items-center mb-3">
+                    {% if settings.enable_image_generation %}
+                    <!-- Image Generation Button -->
+                    <button
+                        id="image-generate-btn"
+                        class="btn btn-outline-secondary search-btn me-2"
+                        data-bs-toggle="tooltip"
+                        data-bs-placement="top"
+                        title="Generate images with AI"
+                    >
+                        <i class="bi bi-image"></i>
+                        <span class="search-btn-text">Image</span>
+                    </button>
+                    {% endif %}
+                    {% if settings.enable_user_workspace or settings.enable_group_workspaces %}
+                    <!-- Search Documents Button -->
+                    <button
+                        id="search-documents-btn"
+                        class="btn btn-outline-secondary search-btn me-2"
+                        data-bs-toggle="tooltip"
+                        data-bs-placement="top"
+                        title="Search your documents"
+                    >
+                        <i class="bi bi-file-earmark-text"></i>
+                        <span class="search-btn-text">Search Documents</span>
+                    </button>
+                    {% endif %}
+                    <!-- Search Web Button -->
+                    {% if settings.enable_web_search  %}
+                    <button
+                        id="search-web-btn"
+                        class="btn btn-outline-secondary search-btn me-2"
+                        data-bs-toggle="tooltip"
+                        data-bs-placement="top"
+                        title="Search the web using Bing"
+                    >
+                        <i class="bi bi-globe"></i>
+                        <span class="search-btn-text">Web Search</span>
+                    </button>
+                    {% endif %}
+                    <!-- File Upload Elements -->
+                    <input
+                        type="file"
+                        id="file-input"
+                        accept=".txt,.pdf,.docx,.xlsx,.pptx,.html,.jpg,.jpeg,.png,.bmp,.tiff,.tif,.heif,.md,.json,.csv,.xlsx"
+                        style="display: none"
+                    />
+                    <button
+                        id="choose-file-btn"
+                        class="btn btn-outline-secondary file-btn me-2"
+                        data-bs-toggle="tooltip"
+                        data-bs-placement="top"
+                        title="Add a file to this conversation"
+                    >
+                        <i class="bi bi-paperclip"></i>
+                        <span class="file-btn-text"></span>
+                    </button>
+                    <button
+                        id="upload-btn"
+                        class="btn btn-secondary btn-sm me-2"
+                        style="display: none"
+                    >
+                        Add to Chat
+                    </button>
+
+                    <!-- Optionally, a "Select Prompt" button that toggles the prompt dropdown -->
+                    {% if settings.enable_user_workspace or settings.enable_group_workspaces %}
+                    <button
+                    id="search-prompts-btn"
+                    class="btn btn-outline-secondary search-btn me-2"
+                    data-bs-toggle="tooltip"
+                    data-bs-placement="top"
+                    title="Select a saved prompt"
+                    >
+                    <i class="bi bi-lightbulb"></i>
+                    <span class="search-btn-text">Prompts</span>
+                    </button>
+                    {% endif %}
+                </div>
+                <!-- Second Row: Message Input, Doc Scope, Document Select, and Send Button -->
+                <div class="input-group">
+                    <!-- In chats.html, find the doc-scope-select dropdown and update it -->
+                    <select class="form-select me-2" id="doc-scope-select" style="max-width: 180px; display: none;">
+                        <option value="all" selected>All</option>
+                        <option value="personal">Personal</option>
+                        <option value="group">Channels</option>
+                        <option value="default_only">Default Only</option>
+                    </select>
+                    <!-- Document Selection Dropdown -->
+                    <select class="form-select me-2" id="document-select" style="max-width: 220px; display: none;">
+                        <!-- Options will be populated dynamically -->
+                    </select>
+                    <button 
+                        id="voice-input-btn" 
+                        class="btn btn-outline-secondary" 
+                        type="button" 
+                        title="Voice input"
+                        data-bs-toggle="tooltip" 
+                        data-bs-placement="top">
+                        <i class="bi bi-mic"></i>
+                    </button>
+                    
+                    <!-- Existing text input -->
+                    <input
+                        type="text"
+                        id="user-input"
+                        class="form-control"
+                        placeholder="Type your message here..."
+                    />
+                    
+                    <!-- Existing send button -->
+                    <button class="btn btn-primary" id="send-btn">Send</button>
+                    </div>
+
+            
+
+                    <!-- Our prompt dropdown, which will REPLACE the user input when toggled -->
+                    {% if settings.enable_user_workspace or settings.enable_group_workspaces %}
+                    <select class="form-select me-2" id="prompt-select" style="display: none; max-width: 70%;">
+                        <!-- Prompt options will be populated dynamically -->
+                    </select>
+                    {% endif %}
+                    
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Document Viewer Modal (for citations) -->
+    <div class="modal fade" id="citation-modal" tabindex="-1" aria-labelledby="citationModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-xl">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="citationModalLabel">Document Citation</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body p-0">
+                    <div class="document-viewer-container">
+                        <!-- Document viewer iframe or content will be inserted here -->
+                        <div class="d-flex justify-content-center align-items-center h-100 w-100">
+                            <div class="spinner-border text-primary" role="status">
+                                <span class="visually-hidden">Loading...</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal for collecting thumbs-down reason -->
+    <div class="modal fade" id="feedback-modal" tabindex="-1" aria-labelledby="feedbackModalLabel" aria-hidden="true">
+        <div class="modal-dialog">
+        <form id="feedback-form">
+            <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="feedbackModalLabel">Optional: Provide a reason</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <input type="hidden" id="feedback-ai-response-id" name="aiResponseId" />
+                <input type="hidden" id="feedback-conversation-id" name="conversationId" />
+                <input type="hidden" id="feedback-type" name="feedbackType" />
+                
+                <div class="mb-3">
+                <label for="feedback-reason" class="form-label">
+                    Reason (optional)
+                </label>
+                <textarea 
+                    class="form-control" 
+                    id="feedback-reason"
+                    name="reason"
+                    rows="3"
+                    placeholder="e.g., incomplete answer, incorrect details..."
+                ></textarea>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="submit" class="btn btn-primary">Submit Feedback</button>
+            </div>
+            </div>
+        </form>
+        </div>
+    </div>
+
+    <div class="toast-container position-fixed top-0 end-0 p-3" id="toast-container"></div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    window.enableUserFeedback = "{{ enable_user_feedback }}";
+    window.activeGroupId = "{{ active_group_id }}";
+</script>
+
+<script src="{{ url_for('static', filename='js/chats.js') }}"></script>
+
+<!-- Script needed for PDF viewer route -->
+
+
+<script>
+    // Update this function in the chats.js file to handle citations properly
+    function handleCitationClick(citationId) {
+        // Show loading indicator
+        showToast('Loading document...', 'info');
+    
+        // Make a request to get citation details
+        fetch('/api/get_citation', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                citation_id: citationId
+            })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.error) {
+                showToast('Error: ' + data.error, 'danger');
+                return;
+            }
+            
+            // Set modal title
+            const sourceName = data.document_source.name || 'Document';
+            const sourcePage = data.document_source.page || 1;
+            document.getElementById('citationModalLabel').textContent = 
+                `${sourceName} (Page ${sourcePage})`;
+            
+            // Create iframe for document viewer
+            const container = document.querySelector('.document-viewer-container');
+            container.innerHTML = ''; // Clear any existing content
+            
+            if (data.document_viewer_url) {
+                const iframe = document.createElement('iframe');
+                iframe.style.width = '100%';
+                iframe.style.height = '85vh';
+                iframe.style.border = 'none';
+                iframe.src = data.document_viewer_url;
+                container.appendChild(iframe);
+                
+                // Listen for messages from the iframe
+                window.addEventListener('message', function(event) {
+                    if (event.data === 'close-document-modal') {
+                        // Close the modal when receiving this message
+                        bootstrap.Modal.getInstance(document.getElementById('citation-modal')).hide();
+                    }
+                });
+            } else {
+                // No document URL available, show the cited text only
+                const textContainer = document.createElement('div');
+                textContainer.style.padding = '20px';
+                textContainer.style.backgroundColor = '#f8f9fa';
+                textContainer.style.border = '1px solid #dee2e6';
+                textContainer.style.borderRadius = '4px';
+                textContainer.style.margin = '20px';
+                textContainer.style.maxHeight = '80vh';
+                textContainer.style.overflow = 'auto';
+                textContainer.style.whiteSpace = 'pre-wrap';
+                
+                const header = document.createElement('h6');
+                header.textContent = 'Cited Text:';
+                header.style.marginBottom = '10px';
+                
+                const text = document.createElement('div');
+                text.textContent = data.cited_text || 'No text available';
+                
+                textContainer.appendChild(header);
+                textContainer.appendChild(text);
+                container.appendChild(textContainer);
+            }
+            
+            // Show the citation modal
+            const citationModal = new bootstrap.Modal(document.getElementById('citation-modal'));
+            citationModal.show();
+        })
+        .catch(error => {
+            console.error('Error fetching citation:', error);
+            showToast('Error loading document citation', 'danger');
+        });
+    }
+    
+    // Update the event delegation for citation links in chats.js
+    document.addEventListener('click', function(event) {
+        // Find closest citation link
+        const citationLink = event.target.closest('.citation-link');
+        if (citationLink) {
+            event.preventDefault();
+            const citationId = citationLink.getAttribute('data-citation-id');
+            if (citationId) {
+                handleCitationClick(citationId);
+            }
+        }
+    });
+    
+    // Helper function to parse citation IDs from message text
+    function parseCitationIds(messageText) {
+        const regex = /\[#([a-zA-Z0-9_-]+)\]/g;
+        const citations = [];
+        let match;
+        
+        while ((match = regex.exec(messageText)) !== null) {
+            citations.push(match[1]);
+        }
+        
+        return citations;
+    }
+    
+    // When rendering messages, add this to enhance them with clickable citations
+    function enhanceMessageWithCitations(messageElement, messageText) {
+        const citations = parseCitationIds(messageText);
+        
+        if (citations.length > 0) {
+            // Replace citation patterns with clickable links
+            let enhancedText = messageText;
+            citations.forEach(citationId => {
+                const citationPattern = `[#${citationId}]`;
+                const citationLink = `<a href="#" class="citation-link" data-citation-id="${citationId}">${citationPattern}</a>`;
+                enhancedText = enhancedText.replace(citationPattern, citationLink);
+            });
+            
+            messageElement.innerHTML = enhancedText;
+        }
+    }
+</script>
+{% endblock %}
