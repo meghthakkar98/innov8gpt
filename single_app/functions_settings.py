@@ -24,7 +24,7 @@ def get_settings():
             # GPT Settings
             'enable_gpt_apim': False,
             'azure_openai_gpt_endpoint': '',
-            'azure_openai_gpt_api_version': '2024-05-01-preview',
+            'azure_openai_gpt_api_version': '',
             'azure_openai_gpt_authentication_type': 'key',
             'azure_openai_gpt_subscription_id': '',
             'azure_openai_gpt_resource_group': '',

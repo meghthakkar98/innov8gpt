@@ -23,16 +23,19 @@ def register_route_backend_chats(app):
             # Extract from request
             user_message = data.get('message', '')
             conversation_id = data.get('conversation_id')
+            use_open_ai = data.get('use_open_ai', True)  # New parameter for Open AI knowledge
             hybrid_search_enabled = data.get('hybrid_search')
             selected_document_id = data.get('selected_document_id')
-            document_group_id = data.get('document_group_id')  # Extract document_group_id 
+            document_group_id = data.get('document_group_id') 
             bing_search_enabled = data.get('bing_search')
             image_gen_enabled = data.get('image_generation')
             streaming_enabled = data.get('streaming', True)
             document_scope = data.get('doc_scope')
-            active_group_id = data.get('active_group_id')  # Add this line to extract document_group_id
+            active_group_id = data.get('active_group_id')
 
             # Convert toggles from string -> bool if needed
+            if isinstance(use_open_ai, str):
+                use_open_ai = use_open_ai.lower() == 'true'
             if isinstance(hybrid_search_enabled, str):
                 hybrid_search_enabled = hybrid_search_enabled.lower() == 'true'
             if isinstance(bing_search_enabled, str):
@@ -71,6 +74,7 @@ def register_route_backend_chats(app):
                         'last_updated': datetime.utcnow().isoformat(),
                         'title': 'New Conversation'
                     }
+
 
             # ---------------------------------------------------------------------
             # 2) Append the user message to conversation immediately
@@ -202,6 +206,24 @@ def register_route_backend_chats(app):
             # ---------------------------------------------------------------------
 
             # Hybrid Search
+            if use_open_ai and not hybrid_search_enabled:
+                system_prompt = (
+                    "You are an AI assistant named Claude. Answer this question based on your general knowledge.\n"
+                    "If you don't know the answer, just say that you don't know, don't try to make up an answer.\n"
+                    "Always cite your sources when referring to studies, statistics, or specific information."
+                )
+                
+                system_message_id = f"{conversation_id}_system_{int(time.time())}_{random.randint(1000,9999)}"
+                conversation_item['messages'].append({
+                    'role': 'system',
+                    'content': system_prompt,
+                    'model_deployment_name': None,
+                    'message_id': system_message_id
+                })
+                conversation_item['last_updated'] = datetime.utcnow().isoformat()
+                container.upsert_item(body=conversation_item)
+
+            # Hybrid Search - only execute if hybrid_search_enabled is True
             if hybrid_search_enabled:
                 if selected_document_id:
                     search_results = hybrid_search(

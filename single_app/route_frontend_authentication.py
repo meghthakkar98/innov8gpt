@@ -38,9 +38,7 @@ def register_route_frontend_authentication(app):
         print("User logged in successfully.")
         return redirect(url_for('index'))
 
-    @app.route('/logout')
-    def logout():
+    @app.route('/simple_logout')
+    def simple_logout():
         session.clear()
-        logout_url = f"{AUTHORITY}/oauth2/v2.0/logout?post_logout_redirect_uri={url_for('index', _external=True)}"
-        print("User logged out. Redirecting to Azure AD logout endpoint.")
-        return redirect(logout_url)
+        return redirect(url_for('index'))

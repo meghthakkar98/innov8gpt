@@ -155,7 +155,8 @@ def process_group_document_upload(file, group_id, user_id):
         '.docx': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
         '.xlsx': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
         '.pptx': 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
-        '.txt': 'text/plain'
+        '.txt': 'text/plain',
+        '.csv': 'text/csv'  # Add CSV content type
     }.get(file_ext, 'application/octet-stream')
         
     try:
@@ -174,6 +175,20 @@ def process_group_document_upload(file, group_id, user_id):
             try:
                 if file_ext in ['.pdf', '.docx', '.xlsx', '.pptx', '.html', '.jpg', '.jpeg', '.png', '.bmp', '.tiff', '.tif', '.heif']:
                     extraction_result = extract_content_with_azure_di(temp_file_path)
+                elif file_ext == '.csv':  # Add CSV handling
+                    # Read CSV as text and preserve structure
+                    with open(temp_file_path, 'r', encoding='utf-8') as f:
+                        content = f.read()
+                        extraction_result = {
+                            "content": [{
+                                "page_number": 1,
+                                "text": content
+                            }],
+                            "pages_info": [{
+                                "page_number": 1,
+                                "text": content
+                            }]
+                        }
                 elif file_ext == '.txt':
                     with open(temp_file_path, 'r', encoding='utf-8') as f:
                         content = f.read()

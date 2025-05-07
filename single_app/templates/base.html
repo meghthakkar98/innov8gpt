@@ -102,6 +102,79 @@
     .p-3.border-top {
       flex-shrink: 0;
     }
+
+    .navbar.navbar-expand-lg.navbar-light.fixed-top {
+      background-color: #f0f0f0 !important;
+    }
+
+    /* Make sure the container inside navbar also has the background color */
+    .navbar .container-fluid {
+      background-color: #f0f0f0;
+    }
+
+    /* Ensure the navbar collapse element has the same background */
+    .navbar-collapse {
+      background-color: #f0f0f0;
+    }
+
+    /* Ensure the navbar toggler (mobile menu button) has consistent styling */
+    .navbar-toggler {
+      background-color: #f0f0f0;
+    }
+
+    /* Update dropdown menus to match navbar color */
+    .navbar .dropdown-menu {
+      background-color: #f0f0f0;
+      border: 1px solid #ddd;
+    }
+
+    /* Navbar items hover style */
+    .navbar-nav .nav-item .nav-link:hover:not(.active) {
+      background-color: #e0e0e0;
+      border-radius: 4px;
+    }
+
+    .navbar-nav .nav-item .nav-link.active {
+      background-color: #0d6efd;
+      color: white !important;
+      border-radius: 4px;
+    }
+
+    /* Hover effect for nav links */
+    .navbar-nav .nav-item .nav-link:hover:not(.active) {
+      background-color: #f0f0f0;
+      border-radius: 4px;
+    }
+
+    /* Additional spacing for navigation items */
+    .navbar-nav .nav-item {
+      margin-right: 5px;
+    }
+
+    .navbar-nav .nav-item .nav-link {
+      padding: 6px 12px;
+      transition: all 0.2s ease;
+    }
+
+    /* Logout button styling */
+    a.nav-link[href*="logout"] {
+      background-color: #dc3545 !important; /* Bootstrap danger red */
+      color: white !important;
+      border-radius: 4px !important;
+      padding: 6px 12px !important;
+      margin-left: 8px !important;
+      transition: background-color 0.3s ease !important;
+    }
+
+    /* Hover effect */
+    a.nav-link[href*="logout"]:hover {
+      background-color: #c82333 !important; /* Darker red on hover */
+    }
+
+    /* Active/pressed state */
+    a.nav-link[href*="logout"]:active {
+      background-color: #bd2130 !important; /* Even darker red when clicked */
+    }
   </style>
 
   {% block head %}{% endblock %}
@@ -109,7 +182,7 @@
 
 <body class="d-flex flex-column min-vh-100">
   <!-- Navigation Bar -->
-  <nav class="navbar navbar-expand-lg navbar-light bg-light fixed-top">
+  <nav class="navbar navbar-expand-lg navbar-light fixed-top">
     <div class="container-fluid">
       {% if app_settings.show_logo %}
       <a class="navbar-brand" href="{{ url_for('index') }}">
@@ -236,7 +309,7 @@
             </li>
   
             <li class="nav-item">
-              <a class="nav-link" href="{{ url_for('logout') }}">
+              <a class="nav-link" href="{{ url_for('simple_logout') }}">
                 Logout
               </a>
             </li>
@@ -269,6 +342,30 @@
   <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/dompurify/2.3.6/purify.min.js"></script>
 
+  <script>
+    // JavaScript to handle active navigation state
+    document.addEventListener('DOMContentLoaded', function() {
+      // Get the current path
+      const currentPath = window.location.pathname;
+      
+      // Clear any existing active classes
+      document.querySelectorAll('.navbar-nav .nav-link').forEach(link => {
+        link.classList.remove('active');
+      });
+      
+      // Set active class based on the current path
+      if (currentPath.includes('/chats')) {
+        const chatLink = document.querySelector('.navbar-nav .nav-link[href*="chat"]');
+        if (chatLink) chatLink.classList.add('active');
+      } else if (currentPath.includes('/workspace')) {
+        const personalLink = document.querySelector('.navbar-nav .nav-link[href*="workspace"]');
+        if (personalLink) personalLink.classList.add('active');
+      } else if (currentPath.includes('/group')) {
+        const channelLink = document.querySelector('.navbar-nav .nav-link[href*="group"]');
+        if (channelLink) channelLink.classList.add('active');
+      }
+    });
+  </script>
   {% block scripts %}{% endblock %}
 </body>
 </html>

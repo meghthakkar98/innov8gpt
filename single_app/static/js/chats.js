@@ -6,15 +6,457 @@ let currentConversationId = null;
 let userPrompts = [];
 let groupPrompts = [];
 let activeGroupId = null; // Define activeGroupId variable
-// Add these variables to the top of the file with other application state variables
 let userGroups = [];
 let selectedGroupId = null;
+
+
+
+
+// Initialize all UI components and event handlers when DOM is ready
+document.addEventListener("DOMContentLoaded", function() {
+  console.log("🚀 Initializing chat interface...");
+  
+  // Set up prompt selection
+  const promptSelect = document.getElementById("prompt-select");
+  const userInput = document.getElementById("user-input");
+  const searchPromptsBtn = document.getElementById("search-prompts-btn");
+  
+  if (searchPromptsBtn) {
+    searchPromptsBtn.addEventListener("click", function() {
+      if (!promptSelect || !userInput) return;
+      
+      const isActive = this.classList.toggle("active");
+      
+      if (isActive) {
+        userInput.style.display = "none";
+        promptSelect.style.display = "inline-block";
+        populatePromptSelect();
+        userInput.value = "";
+      } else {
+        userInput.style.display = "inline-block";
+        promptSelect.style.display = "none";
+        promptSelect.selectedIndex = 0;
+      }
+    });
+  }
+  
+  // Set up conversation list click handler
+  const conversationsList = document.getElementById("conversations-list");
+  if (conversationsList) {
+    conversationsList.addEventListener("click", (event) => {
+      const delBtn = event.target.closest(".delete-btn");
+      if (delBtn) {
+        event.stopPropagation();
+        const conversationId = delBtn.getAttribute("data-conversation-id");
+        deleteConversation(conversationId);
+      } else {
+        const convoItem = event.target.closest(".conversation-item");
+        if (convoItem) {
+          const conversationId = convoItem.getAttribute("data-conversation-id");
+          selectConversation(conversationId);
+        }
+      }
+    });
+  }
+  
+  // Set up new conversation button
+  const newConversationBtn = document.getElementById("new-conversation-btn");
+  if (newConversationBtn) {
+    newConversationBtn.addEventListener("click", () => {
+      createNewConversation();
+    });
+  }
+  
+  // Set up Web Search button
+  const webSearchBtn = document.getElementById("search-web-btn");
+  if (webSearchBtn) {
+    webSearchBtn.addEventListener("click", function() {
+      this.classList.toggle("active");
+    });
+  }
+  
+  // Set up Image Generation button
+  const imageGenBtn = document.getElementById("image-generate-btn");
+  if (imageGenBtn) {
+    imageGenBtn.addEventListener("click", function() {
+      this.classList.toggle("active");
+      
+      const isImageGenEnabled = this.classList.contains("active");
+      const docBtn = document.getElementById("search-documents-btn");
+      const webBtn = document.getElementById("search-web-btn");
+      const fileBtn = document.getElementById("choose-file-btn");
+      
+      if (isImageGenEnabled) {
+        if (docBtn) {
+          docBtn.disabled = true;
+          docBtn.classList.remove("active");
+        }
+        if (webBtn) {
+          webBtn.disabled = true;
+          webBtn.classList.remove("active");
+        }
+        if (fileBtn) {
+          fileBtn.disabled = true;
+          fileBtn.classList.remove("active");
+        }
+      } else {
+        if (docBtn) docBtn.disabled = false;
+        if (webBtn) webBtn.disabled = false;
+        if (fileBtn) fileBtn.disabled = false;
+      }
+    });
+  }
+  
+  // Set up File Upload button
+  const chooseFileBtn = document.getElementById("choose-file-btn");
+  if (chooseFileBtn) {
+    chooseFileBtn.addEventListener("click", function() {
+      const fileInput = document.getElementById("file-input");
+      if (fileInput) fileInput.click();
+    });
+  }
+  
+  const fileInputEl = document.getElementById("file-input");
+  if (fileInputEl) {
+    fileInputEl.addEventListener("change", function() {
+      const file = fileInputEl.files[0];
+      const fileBtn = document.getElementById("choose-file-btn");
+      const uploadBtn = document.getElementById("upload-btn");
+      if (!fileBtn || !uploadBtn) return;
+      
+      if (file) {
+        fileBtn.classList.add("active");
+        const fileBtnText = fileBtn.querySelector(".file-btn-text");
+        if (fileBtnText) {
+          fileBtnText.textContent = file.name;
+        }
+        uploadBtn.style.display = "block";
+      } else {
+        resetFileButton();
+      }
+    });
+  }
+  
+  const uploadBtn = document.getElementById("upload-btn");
+  if (uploadBtn) {
+    uploadBtn.addEventListener("click", () => {
+      const fileInput = document.getElementById("file-input");
+      if (!fileInput) return;
+      
+      const file = fileInput.files[0];
+      if (!file) {
+        showToast("Please select a file to upload.", "danger");
+        return;
+      }
+      
+      if (!currentConversationId) {
+        createNewConversation(() => {
+          uploadFileToConversation(file);
+        });
+      } else {
+        uploadFileToConversation(file);
+      }
+    });
+  }
+  
+  // Set up the chat message display area
+  const chatboxEl = document.getElementById("chatbox");
+  if (chatboxEl) {
+    chatboxEl.addEventListener("click", (event) => {
+      if (event.target && event.target.matches("a.citation-link")) {
+        event.preventDefault();
+        const citationId = event.target.getAttribute("data-citation-id");
+        fetchCitedText(citationId);
+      } else if (event.target && event.target.matches("a.file-link")) {
+        event.preventDefault();
+        const fileId = event.target.getAttribute("data-file-id");
+        const conversationId = event.target.getAttribute("data-conversation-id");
+        fetchFileContent(conversationId, fileId);
+      }
+      if (event.target.classList.contains("generated-image")) {
+        const imageSrc = event.target.getAttribute("data-image-src");
+        showImagePopup(imageSrc);
+      }
+    });
+  }
+  
+  // Set up Send button
+  const sendBtn = document.getElementById("send-btn");
+  if (sendBtn) {
+    sendBtn.addEventListener("click", sendMessage);
+  }
+  
+  // Set up Enter key to send message
+  if (userInput) {
+    userInput.addEventListener("keypress", function(e) {
+      if (e.key === "Enter") {
+        sendMessage();
+      }
+    });
+  }
+  
+  // Set up the feedback system
+  document.addEventListener("click", function(event) {
+    const feedbackBtn = event.target.closest(".feedback-btn");
+    if (!feedbackBtn) return;
+    
+    const feedbackType = feedbackBtn.getAttribute("data-feedback-type");
+    const feedbackIcons = feedbackBtn.closest(".feedback-icons");
+    
+    if (!feedbackIcons) {
+      console.error("Could not find parent .feedback-icons element");
+      return;
+    }
+    
+    const messageId = feedbackIcons.getAttribute("data-ai-message-id");
+    const conversationId = feedbackBtn.getAttribute("data-conversation-id");
+    
+    if (!messageId || !conversationId) {
+      console.error("Missing required attributes:", { messageId, conversationId });
+      return;
+    }
+    
+    // Add visual feedback
+    feedbackBtn.classList.add("clicked");
+    
+    if (feedbackType === "positive") {
+      // Immediately submit thumbs-up, no reason needed
+      submitFeedback(messageId, conversationId, "positive", "");
+      
+      // Remove the visual feedback after a short delay
+      setTimeout(() => {
+        feedbackBtn.classList.remove("clicked");
+      }, 500);
+    } else {
+      // Thumbs down => open modal for optional reason
+      const feedbackModal = document.getElementById("feedback-modal");
+      if (!feedbackModal) {
+        console.error("Feedback modal not found");
+        return;
+      }
+      
+      const modalEl = new bootstrap.Modal(feedbackModal);
+      
+      const messageIdInput = document.getElementById("feedback-ai-response-id");
+      const conversationIdInput = document.getElementById("feedback-conversation-id");
+      const feedbackTypeInput = document.getElementById("feedback-type");
+      const reasonInput = document.getElementById("feedback-reason");
+      
+      if (messageIdInput) messageIdInput.value = messageId;
+      if (conversationIdInput) conversationIdInput.value = conversationId;
+      if (feedbackTypeInput) feedbackTypeInput.value = "negative";
+      if (reasonInput) reasonInput.value = "";
+      
+      modalEl.show();
+    }
+  });
+  
+  // Handle the feedback form submission
+  const feedbackForm = document.getElementById("feedback-form");
+  if (feedbackForm) {
+    feedbackForm.addEventListener("submit", (e) => {
+      e.preventDefault();
+      const messageId = document.getElementById("feedback-ai-response-id")?.value;
+      const conversationId = document.getElementById("feedback-conversation-id")?.value;
+      const feedbackType = document.getElementById("feedback-type")?.value;
+      const reason = document.getElementById("feedback-reason")?.value?.trim() || "";
+      
+      if (!messageId || !conversationId || !feedbackType) {
+        console.error("Missing required feedback fields");
+        return;
+      }
+      
+      // Submit feedback
+      submitFeedback(messageId, conversationId, feedbackType, reason);
+      
+      // Hide modal
+      const feedbackModal = document.getElementById("feedback-modal");
+      if (feedbackModal) {
+        const modalEl = bootstrap.Modal.getInstance(feedbackModal);
+        if (modalEl) modalEl.hide();
+      }
+    });
+  }
+  
+  // Handle modal cleanup
+  document.querySelectorAll('.modal').forEach(function(modalEl) {
+    modalEl.addEventListener('hidden.bs.modal', function() {
+      // Remove any lingering modal backdrops
+      const backdrops = document.querySelectorAll('.modal-backdrop');
+      backdrops.forEach(function(backdrop) {
+        backdrop.remove();
+      });
+      
+      // Re-enable scrolling
+      document.body.classList.remove('modal-open');
+      document.body.style.overflow = '';
+      document.body.style.paddingRight = '';
+    });
+  });
+  
+  // Set up tooltips
+  const tooltipTriggerList = [].slice.call(
+    document.querySelectorAll('[data-bs-toggle="tooltip"]')
+  );
+  tooltipTriggerList.forEach(function(tooltipTriggerEl) {
+    new bootstrap.Tooltip(tooltipTriggerEl);
+  });
+  
+  // Set up the document viewers
+  window.addEventListener('message', function(event) {
+    // Process messages from the PDF viewer iframe
+    if (event.data === 'close-pdf-modal' || event.data === 'close-document-modal') {
+      const modal = document.getElementById('citation-modal');
+      if (modal) {
+        const modalInstance = bootstrap.Modal.getInstance(modal);
+        if (modalInstance) {
+          modalInstance.hide();
+        }
+      }
+    }
+  }, false);
+  
+  // Set up the citation link handling
+  document.addEventListener('click', function(event) {
+    // Find closest citation link
+    const citationLink = event.target.closest('.citation-link');
+    if (citationLink) {
+      event.preventDefault();
+      const citationId = citationLink.getAttribute('data-citation-id');
+      if (citationId) {
+        handleCitationClick(citationId);
+      }
+    }
+  });
+  
+  // Set up voice input
+  setupVoiceToText();
+  
+  // Set up the special buttons with mutual exclusivity
+  setupSpecialButtons();
+  
+  console.log("✅ DOM event handlers initialized");
+});
+
+function setupSpecialButtons() {
+  // Get button reference for search documents
+  const searchDocumentsBtn = document.getElementById("search-documents-btn");
+  
+  // Handle Search Documents button with enhanced logging
+  if (searchDocumentsBtn) {
+    console.log("Setting up Search Documents button");
+    // First remove any existing listeners
+    const newSearchBtn = searchDocumentsBtn.cloneNode(true);
+    searchDocumentsBtn.parentNode.replaceChild(newSearchBtn, searchDocumentsBtn);
+    
+    // Add our event listener to the new button with enhanced functionality
+    newSearchBtn.addEventListener("click", function() {
+      console.group("🔎 Document Search Button Toggle");
+      
+      // Toggle active state
+      this.classList.toggle("active");
+      const isNowActive = this.classList.contains("active");
+      console.log("Search Documents is now: " + (isNowActive ? "active" : "inactive"));
+      
+      // Get document selection UI elements
+      const docScopeSel = document.getElementById("doc-scope-select");
+      const docSelectEl = document.getElementById("document-select");
+      
+      if (isNowActive) {
+        // Show document selection UI - use !important to override any CSS rules
+        if (docScopeSel) {
+          docScopeSel.style.cssText = "display: inline-block !important; max-width: 180px;"; 
+          console.log("Set doc scope select to display inline-block");
+        }
+        if (docSelectEl) {
+          docSelectEl.style.cssText = "display: inline-block !important; max-width: 220px;";
+          console.log("Set document select to display inline-block");
+        }
+        
+        // Load documents if needed and populate selects
+        console.log("Checking document loading status...");
+        const personalLoaded = personalDocs.length > 0;
+        const groupLoaded = groupDocs.length > 0;
+        
+        console.log("Personal docs already loaded:", personalLoaded, "count:", personalDocs.length);
+        console.log("Group docs already loaded:", groupLoaded, "count:", groupDocs.length);
+        
+        if (!personalLoaded || !groupLoaded) {
+          console.log("Need to load documents, calling loadAllDocs()");
+          loadAllDocs().then(() => {
+            console.log("Documents loaded, populating document select");
+            setupDocumentScopeSelect();
+            populateDocumentSelectScope();
+          });
+        } else {
+          console.log("Documents already loaded, populating document select");
+          setupDocumentScopeSelect();
+          populateDocumentSelectScope();
+        }
+      } else {
+        // Hide document selection UI when deactivated
+        if (docScopeSel) {
+          docScopeSel.style.cssText = "display: none !important;";
+          console.log("Hidden document scope select");
+        }
+        if (docSelectEl) {
+          docSelectEl.style.cssText = "display: none !important;";
+          console.log("Hidden document select");
+        }
+      }
+      
+      console.groupEnd();
+    });
+  }
+}
+
+  
+
+// Set up the window.onload function
+window.onload = function() {
+  console.log("⚡ Window loaded, initializing app state");
+  
+  // Load conversations
+  loadConversations();
+  
+  // Load all documents but don't display them yet
+  Promise.all([
+    loadAllDocs(),
+    loadUserPrompts(),
+    loadGroupPrompts()
+  ])
+    .then(() => {
+      console.log("📄 All data loaded");
+      
+      // Make sure document selects are hidden by default
+      const docScopeSel = document.getElementById("doc-scope-select");
+      const docSelectEl = document.getElementById("document-select");
+      
+      if (docScopeSel) {
+        docScopeSel.style.display = "none";
+        console.log("Hidden document scope select");
+      }
+      
+      if (docSelectEl) {
+        docSelectEl.style.display = "none";
+        console.log("Hidden document select");
+      }
+      
+      // Make sure search documents button starts as inactive
+      const searchDocsBtn = document.getElementById("search-documents-btn");
+      if (searchDocsBtn) {
+        searchDocsBtn.classList.remove("active");
+        console.log("Ensured search docs button is inactive");
+      }
+    })
+    .catch((err) => {
+      console.error("Error loading initial data:", err);
+    });
+};
 
 /*************************************************
  *  LOADING PROMPTS
  *************************************************/
-
-const promptSelect = document.getElementById("prompt-select");
 
 function loadUserPrompts() {
   return fetch("/api/prompts")
@@ -49,6 +491,7 @@ function loadGroupPrompts() {
 }
 
 function populatePromptSelect() {
+  const promptSelect = document.getElementById("prompt-select");
   if (!promptSelect) return;
 
   promptSelect.innerHTML = "";
@@ -69,40 +512,6 @@ function populatePromptSelect() {
     opt.textContent = `[${promptObj.scope}] ${promptObj.name}`;
     opt.dataset.promptContent = promptObj.content;
     promptSelect.appendChild(opt);
-  });
-}
-
-// Toggle show/hide
-const searchPromptsBtn = document.getElementById("search-prompts-btn");
-const userInput = document.getElementById("user-input"); // Define userInput here
-if (searchPromptsBtn) {
-  searchPromptsBtn.addEventListener("click", function() {
-    if (!promptSelect || !userInput) return;
-
-    const isActive = this.classList.toggle("active");
-
-    if (isActive) {
-      // Hide the text input
-      userInput.style.display = "none";
-
-      // Show the prompt dropdown
-      promptSelect.style.display = "inline-block";
-
-      // (Re)populate the dropdown with any prompts
-      populatePromptSelect();
-
-      // Optionally, reset any previously entered text
-      userInput.value = "";
-    } else {
-      // Show the text input
-      userInput.style.display = "inline-block";
-
-      // Hide the prompt dropdown
-      promptSelect.style.display = "none";
-
-      // Reset the prompt select back to default
-      promptSelect.selectedIndex = 0;
-    }
   });
 }
 
@@ -214,7 +623,6 @@ function updateConversationInList(conversationId, title) {
 /*************************************************
  *  DOC SCOPE & POPULATING SELECT
  *************************************************/
-// Update this function in chats.js
 function populateDocumentSelectScope() {
   console.group("📄 Populating Document Select");
   
@@ -331,7 +739,6 @@ function populateDocumentSelectScope() {
   console.log("Populated document select dropdown with organized categories");
   console.groupEnd();
 }
- 
 
 // Update the document scope select to include "all groups" option
 function setupDocumentScopeSelect() {
@@ -359,6 +766,21 @@ function setupDocumentScopeSelect() {
   docScopeSelect.addEventListener("change", function() {
     populateDocumentSelectScope();
   });
+
+  document.addEventListener("DOMContentLoaded", function() {
+  console.log("🚀 Initializing chat interface...");
+  
+  // ADD THIS BLOCK at the top of your DOMContentLoaded handler
+  // Create a style element to ensure dropdowns can be properly toggled
+  const styleEl = document.createElement('style');
+  styleEl.textContent = `
+    /* Initially hide document selects but allow JS to override */
+    #doc-scope-select, #document-select {
+      display: none;
+    }
+  `;
+  document.head.appendChild(styleEl);
+});
 }
 
 /*************************************************
@@ -449,7 +871,6 @@ function loadGroupDocs() {
     });
 }
 
-
 function loadAllDocs() {
   const hasDocControls =
     document.getElementById("search-documents-btn") ||
@@ -467,106 +888,6 @@ function loadAllDocs() {
       console.error("Error in loadAllDocs:", err);
       return Promise.resolve(); // Ensure the chain continues
     });
-}
-
-/*************************************************
- *  TOGGLE BUTTONS: SEARCH DOCUMENTS, WEB SEARCH, IMAGE GEN
- *************************************************/
-const searchDocumentsBtn = document.getElementById("search-documents-btn");
-if (searchDocumentsBtn) {
-  // Save the original event listener
-  const originalClickHandler = searchDocumentsBtn.onclick;
-  
-  // Replace with enhanced version
-  searchDocumentsBtn.addEventListener("click", function () {
-    console.group("🔎 Document Search Button Toggle");
-    
-    const wasActive = this.classList.contains("active");
-    console.log("Was active before click:", wasActive);
-    
-    // Toggle active state
-    this.classList.toggle("active");
-    const isNowActive = this.classList.contains("active");
-    console.log("Is active after click:", isNowActive);
-
-    const docScopeSel = document.getElementById("doc-scope-select");
-    const docSelectEl = document.getElementById("document-select");
-    if (!docScopeSel || !docSelectEl) {
-      console.warn("Document scope or select elements not found");
-      console.groupEnd();
-      return;
-    }
-
-    if (isNowActive) {
-      console.log("Enabling document selection UI");
-      docScopeSel.style.display = "inline-block";
-      docSelectEl.style.display = "inline-block";
-      
-      // Load personal and group documents if needed
-      console.log("Loading documents...");
-      const personalLoaded = personalDocs.length > 0;
-      const groupLoaded = groupDocs.length > 0;
-      
-      console.log("Personal docs already loaded:", personalLoaded, "count:", personalDocs.length);
-      console.log("Group docs already loaded:", groupLoaded, "count:", groupDocs.length);
-      
-      if (!personalLoaded || !groupLoaded) {
-        console.log("Need to load documents, calling loadAllDocs()");
-        loadAllDocs().then(() => {
-          console.log("Documents loaded, populating document select");
-          populateDocumentSelectScope();
-        });
-      } else {
-        console.log("Documents already loaded, populating document select");
-        populateDocumentSelectScope();
-      }
-    } else {
-      console.log("Disabling document selection UI");
-      docScopeSel.style.display = "none";
-      docSelectEl.style.display = "none";
-      docSelectEl.innerHTML = "";
-    }
-    
-    console.groupEnd();
-  });
-}
-
-const webSearchBtn = document.getElementById("search-web-btn");
-if (webSearchBtn) {
-  webSearchBtn.addEventListener("click", function () {
-    this.classList.toggle("active");
-  });
-}
-
-const imageGenBtn = document.getElementById("image-generate-btn");
-if (imageGenBtn) {
-  imageGenBtn.addEventListener("click", function () {
-    this.classList.toggle("active");
-
-    const isImageGenEnabled = this.classList.contains("active");
-    const docBtn = document.getElementById("search-documents-btn");
-    const webBtn = document.getElementById("search-web-btn");
-    const fileBtn = document.getElementById("choose-file-btn");
-
-    if (isImageGenEnabled) {
-      if (docBtn) {
-        docBtn.disabled = true;
-        docBtn.classList.remove("active");
-      }
-      if (webBtn) {
-        webBtn.disabled = true;
-        webBtn.classList.remove("active");
-      }
-      if (fileBtn) {
-        fileBtn.disabled = true;
-        fileBtn.classList.remove("active");
-      }
-    } else {
-      if (docBtn) docBtn.disabled = false;
-      if (webBtn) webBtn.disabled = false;
-      if (fileBtn) fileBtn.disabled = false;
-    }
-  });
 }
 
 /*************************************************
@@ -780,29 +1101,58 @@ function loadMessages(conversationId) {
 /*************************************************
  *  CITATION PARSING
  *************************************************/
+function parseCitations(message) {
+  const citationRegex = /\(Source:\s*([^,]+),\s*Page(?:s)?:\s*([^)]+)\)\s*((?:\[#\S+?\]\s*)+)/g;
+  return message.replace(citationRegex, (whole, filename, pages, bracketSection) => {
+    let filenameHtml;
+    if (/^https?:\/\/.+/i.test(filename.trim())) {
+      filenameHtml = `<a href="${filename.trim()}" target="_blank" rel="noopener noreferrer">${filename.trim()}</a>`;
+    } else {
+      filenameHtml = filename.trim();
+    }
 
+    const idMatches = bracketSection.match(/\[#([^\]]+)\]/g);
+    if (!idMatches) {
+      return `(Source: ${filenameHtml}, Pages: ${pages})`;
+    }
+
+    // Extract the exact page number text without trying to parse/modify it
+    const pageText = pages.trim();
+    
+    // Detect file type from extension
+    let fileIcon = "📄"; // Default document icon
+    const extension = filename.split('.').pop().toLowerCase();
+    
+    if (['pdf'].includes(extension)) {
+      fileIcon = "📕"; // Book for PDF
+    } else if (['jpg', 'jpeg', 'png', 'gif', 'bmp', 'webp'].includes(extension)) {
+      fileIcon = "🖼️"; // Picture for images
+    } else if (['docx', 'doc'].includes(extension)) {
+      fileIcon = "📝"; // Note for Word docs
+    } else if (['xlsx', 'xls', 'csv'].includes(extension)) {
+      fileIcon = "📊"; // Chart for spreadsheets
+    } else if (['pptx', 'ppt'].includes(extension)) {
+      fileIcon = "📊"; // Chart for presentations
+    } else if (['txt', 'log', 'md'].includes(extension)) {
+      fileIcon = "📄"; // Page for text
+    }
+    
+    const citationLinks = idMatches
+      .map((m) => {
+        const rawId = m.slice(2, -1);
+        
+        // Simplified HTML structure with no newlines or extra whitespace
+        return `<a href="#" class="citation-link" data-citation-id="${rawId}" title="View source">${fileIcon} View source</a>`;
+      })
+      .join(" ");
+
+    return `(Source: ${filenameHtml}, Page: ${pageText}) ${citationLinks}`;
+  });
+}
 
 /*************************************************
  *  DELETE A CONVERSATION
  *************************************************/
-const conversationsList = document.getElementById("conversations-list");
-if (conversationsList) {
-  conversationsList.addEventListener("click", (event) => {
-    const delBtn = event.target.closest(".delete-btn");
-    if (delBtn) {
-      event.stopPropagation();
-      const conversationId = delBtn.getAttribute("data-conversation-id");
-      deleteConversation(conversationId);
-    } else {
-      const convoItem = event.target.closest(".conversation-item");
-      if (convoItem) {
-        const conversationId = convoItem.getAttribute("data-conversation-id");
-        selectConversation(conversationId);
-      }
-    }
-  });
-}
-
 function deleteConversation(conversationId) {
   if (confirm("Are you sure you want to delete this conversation?")) {
     fetch(`/api/conversations/${conversationId}`, {
@@ -848,8 +1198,6 @@ function deleteConversation(conversationId) {
 /*************************************************
  *  CITED TEXT FUNCTIONS
  *************************************************/
-// Updated fetchCitedText function to handle page numbers correctly
-// Update the fetchCitedText function to use the new universal document viewer
 function fetchCitedText(citationId) {
   console.log('Fetching citation for ID:', citationId);
   showLoadingIndicator();
@@ -923,7 +1271,6 @@ function fetchCitedText(citationId) {
   xhr.send(JSON.stringify({ citation_id: citationId }));
 }
 
-// Add new function to show document in universal viewer
 function showDocumentInUniversalViewer(data) {
   console.log("Using universal document viewer with data:", data);
   
@@ -1017,193 +1364,6 @@ function showDocumentInUniversalViewer(data) {
   // Show the modal
   const bsModal = new bootstrap.Modal(modal);
   bsModal.show();
-  
-  // Update the event listener for messages from the iframe
-  window.addEventListener('message', function(event) {
-    // Process messages from the document viewer iframe
-    if (event.data === 'close-document-modal' || event.data === 'close-pdf-modal') {
-      const modal = document.getElementById('citation-modal');
-      if (modal) {
-        const modalInstance = bootstrap.Modal.getInstance(modal);
-        if (modalInstance) {
-          modalInstance.hide();
-        }
-      }
-    }
-  }, false);
-}
-
-// Update parseCitations function to handle additional file types
-function parseCitations(message) {
-  const citationRegex = /\(Source:\s*([^,]+),\s*Page(?:s)?:\s*([^)]+)\)\s*((?:\[#\S+?\]\s*)+)/g;
-  return message.replace(citationRegex, (whole, filename, pages, bracketSection) => {
-    let filenameHtml;
-    if (/^https?:\/\/.+/i.test(filename.trim())) {
-      filenameHtml = `<a href="${filename.trim()}" target="_blank" rel="noopener noreferrer">${filename.trim()}</a>`;
-    } else {
-      filenameHtml = filename.trim();
-    }
-
-    const idMatches = bracketSection.match(/\[#([^\]]+)\]/g);
-    if (!idMatches) {
-      return `(Source: ${filenameHtml}, Pages: ${pages})`;
-    }
-
-    // Extract the exact page number text without trying to parse/modify it
-    const pageText = pages.trim();
-    
-    // Detect file type from extension
-    let fileIcon = "📄"; // Default document icon
-    const extension = filename.split('.').pop().toLowerCase();
-    
-    if (['pdf'].includes(extension)) {
-      fileIcon = "📕"; // Book for PDF
-    } else if (['jpg', 'jpeg', 'png', 'gif', 'bmp', 'webp'].includes(extension)) {
-      fileIcon = "🖼️"; // Picture for images
-    } else if (['docx', 'doc'].includes(extension)) {
-      fileIcon = "📝"; // Note for Word docs
-    } else if (['xlsx', 'xls', 'csv'].includes(extension)) {
-      fileIcon = "📊"; // Chart for spreadsheets
-    } else if (['pptx', 'ppt'].includes(extension)) {
-      fileIcon = "📊"; // Chart for presentations
-    } else if (['txt', 'log', 'md'].includes(extension)) {
-      fileIcon = "📄"; // Page for text
-    }
-    
-    const citationLinks = idMatches
-      .map((m) => {
-        const rawId = m.slice(2, -1);
-        
-        // Simplified HTML structure with no newlines or extra whitespace
-        return `<a href="#" class="citation-link" data-citation-id="${rawId}" title="View source">${fileIcon} View source</a>`;
-      })
-      .join(" ");
-
-    return `(Source: ${filenameHtml}, Page: ${pageText}) ${citationLinks}`;
-  });
-}
-
-// Update the window message event listener to handle both viewers
-window.addEventListener('message', function(event) {
-  // Process messages from both PDF viewer and document viewer iframes
-  if (event.data === 'close-pdf-modal' || event.data === 'close-document-modal') {
-    const modal = document.getElementById('citation-modal');
-    if (modal) {
-      const modalInstance = bootstrap.Modal.getInstance(modal);
-      if (modalInstance) {
-        modalInstance.hide();
-      }
-    }
-  }
-}, false);
-
-function showDocumentInUniversalViewer(data) {
-  console.log("Using universal document viewer with data:", data);
-  
-  // Get or create the modal
-  let modal = document.getElementById('citation-modal');
-  if (!modal) {
-    modal = document.createElement('div');
-    modal.id = 'citation-modal';
-    modal.className = 'modal fade';
-    modal.setAttribute('tabindex', '-1');
-    modal.setAttribute('aria-hidden', 'true');
-    
-    modal.innerHTML = `
-      <div class="modal-dialog modal-fullscreen">
-        <div class="modal-content">
-          <div class="modal-header">
-            <h5 class="modal-title"></h5>
-            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-          </div>
-          <div class="modal-body p-0">
-            <div class="document-viewer-container" style="width: 100%; height: 90vh;"></div>
-          </div>
-        </div>
-      </div>
-    `;
-    
-    document.body.appendChild(modal);
-  }
-  
-  // Set the modal title
-  const docName = data.document_source?.name || "Document";
-  const docPage = data.document_source?.page || 1;
-  const fileType = data.document_source?.file_type || "";
-  
-  const modalTitle = modal.querySelector('.modal-title');
-  if (modalTitle) {
-    // Add file type info to the title
-    let titleText = `Source: ${docName}, Page: ${docPage}`;
-    if (fileType) {
-      titleText += ` (${fileType.toUpperCase()})`;
-    }
-    modalTitle.textContent = titleText;
-  }
-  
-  // Get the container
-  const container = modal.querySelector('.document-viewer-container');
-  if (!container) {
-    console.error("Document viewer container not found");
-    return;
-  }
-  
-  // Clear any existing content
-  container.innerHTML = '';
-  
-  // Add a loading indicator
-  const loadingDiv = document.createElement('div');
-  loadingDiv.className = 'spinner-border text-primary';
-  loadingDiv.role = 'status';
-  loadingDiv.style = 'position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);';
-  loadingDiv.innerHTML = '<span class="visually-hidden">Loading...</span>';
-  container.appendChild(loadingDiv);
-  
-  // Create iframe to load the universal document viewer
-  const iframe = document.createElement('iframe');
-  iframe.src = data.document_viewer_url;
-  iframe.style = 'width: 100%; height: 100%; border: none;';
-  iframe.allow = 'fullscreen';
-  iframe.id = 'document-viewer-iframe';
-  
-  // When iframe loads, remove the loading indicator
-  iframe.onload = function() {
-    if (loadingDiv && loadingDiv.parentNode) {
-      loadingDiv.parentNode.removeChild(loadingDiv);
-    }
-  };
-  
-  // If iframe fails to load, show error
-  iframe.onerror = function() {
-    console.error("Error loading document viewer iframe");
-    container.innerHTML = `
-      <div class="alert alert-danger m-3">
-        <h4>Error Loading Document</h4>
-        <p>There was a problem loading the document. Please try again later.</p>
-      </div>
-    `;
-  };
-  
-  // Add the iframe to the container
-  container.appendChild(iframe);
-  
-  // Show the modal
-  const bsModal = new bootstrap.Modal(modal);
-  bsModal.show();
-  
-  // Update the event listener for messages from the iframe
-  window.addEventListener('message', function(event) {
-    // Process messages from the document viewer iframe
-    if (event.data === 'close-document-modal' || event.data === 'close-pdf-modal') {
-      const modal = document.getElementById('citation-modal');
-      if (modal) {
-        const modalInstance = bootstrap.Modal.getInstance(modal);
-        if (modalInstance) {
-          modalInstance.hide();
-        }
-      }
-    }
-  }, false);
 }
 
 function showCitedTextPopup(citedText, fileName, pageNumber) {
@@ -1318,47 +1478,107 @@ function formatDocumentText(text) {
   return formattedHtml;
 }
 
-function enhanceParagraphBreaks(text) {
-  // First, convert the text to HTML, preserving spaces and line breaks
-  let htmlText = text
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/\n/g, '<br>');
+// Updated showDocumentInIframe function to use the page number
+function showDocumentInIframe(documentUrl, documentName, pageNumber) {
+  console.log(`Showing document: ${documentName}, page: ${pageNumber}`); 
   
-  // Look for paragraph breaks (double line breaks or more)
-  // and enhance them with additional spacing for better readability
-  htmlText = htmlText.replace(/(<br>)\s*(<br>)/g, '$1</p><p class="mt-3">');
+  if (!documentUrl) {
+    console.error("Missing document URL");
+    showToast("Error: Document URL not available", "danger");
+    return;
+  }
   
-  // Wrap the entire text in a paragraph
-  htmlText = '<p>' + htmlText + '</p>';
-  
-  return htmlText;
-}
-
-
-function formatCitedText(text) {
-  // Split text into paragraphs (empty lines as separators)
-  const paragraphs = text.split(/\n\s*\n/);
-  
-  // Format each paragraph with proper styling
-  const formattedParagraphs = paragraphs.map(p => {
-    // Clean up the paragraph text (remove excessive whitespace)
-    const cleanedText = p.trim().replace(/\s+/g, ' ');
+  // Get or create the modal
+  let modal = document.getElementById('citation-modal');
+  if (!modal) {
+    modal = document.createElement('div');
+    modal.id = 'citation-modal';
+    modal.className = 'modal fade';
+    modal.setAttribute('tabindex', '-1');
+    modal.setAttribute('aria-hidden', 'true');
     
-    // Detect if the paragraph is a heading
-    const isHeading = cleanedText.toUpperCase() === cleanedText && cleanedText.length < 100;
+    modal.innerHTML = `
+      <div class="modal-dialog modal-fullscreen">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h5 class="modal-title"></h5>
+            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+          </div>
+          <div class="modal-body p-0">
+            <div class="document-viewer-container" style="width: 100%; height: 90vh;"></div>
+          </div>
+        </div>
+      </div>
+    `;
     
-    if (isHeading) {
-      return `<h5 class="mt-4 mb-2">${cleanedText}</h5>`;
-    } else {
-      return `<p class="mb-3">${cleanedText}</p>`;
+    document.body.appendChild(modal);
+  }
+  
+  // Set the modal title with exact page number
+  const modalTitle = modal.querySelector('.modal-title');
+  if (modalTitle) {
+    modalTitle.textContent = `Source: ${documentName}, Page: ${pageNumber}`;
+  }
+  
+  // Get the container
+  const container = modal.querySelector('.document-viewer-container');
+  if (!container) {
+    console.error("Document viewer container not found");
+    return;
+  }
+  
+  // Clear any existing content
+  container.innerHTML = '';
+  
+  // Add a loading indicator
+  const loadingDiv = document.createElement('div');
+  loadingDiv.className = 'spinner-border text-primary';
+  loadingDiv.role = 'status';
+  loadingDiv.style = 'position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);';
+  loadingDiv.innerHTML = '<span class="visually-hidden">Loading...</span>';
+  container.appendChild(loadingDiv);
+  
+  // Create the proxy URL for the document
+  const proxyUrl = `/document-proxy?url=${encodeURIComponent(documentUrl)}`;
+  
+  // Create the PDF viewer URL with the exact page number
+  const randomParam = Math.floor(Math.random() * 1000000);
+  const viewerUrl = `/pdf-viewer?file=${encodeURIComponent(proxyUrl)}&page=${pageNumber}&zoom=100&nocache=${randomParam}`;
+  
+  console.log("PDF Viewer URL:", viewerUrl);
+  
+  // Create iframe to load the PDF viewer
+  const iframe = document.createElement('iframe');
+  iframe.src = viewerUrl;
+  iframe.style = 'width: 100%; height: 100%; border: none;';
+  iframe.allow = 'fullscreen';
+  iframe.id = 'pdf-iframe';
+  
+  // When iframe loads, remove the loading indicator
+  iframe.onload = function() {
+    if (loadingDiv && loadingDiv.parentNode) {
+      loadingDiv.parentNode.removeChild(loadingDiv);
     }
-  });
+  };
   
-  return formattedParagraphs.join('');
+  // If iframe fails to load, show error
+  iframe.onerror = function() {
+    console.error("Error loading PDF iframe");
+    container.innerHTML = `
+      <div class="alert alert-danger m-3">
+        <h4>Error Loading Document</h4>
+        <p>There was a problem loading the PDF. Please try again later.</p>
+      </div>
+    `;
+  };
+  
+  // Add the iframe to the container
+  container.appendChild(iframe);
+  
+  // Show the modal
+  const bsModal = new bootstrap.Modal(modal);
+  bsModal.show();
 }
-
 
 /*************************************************
  *  LOADING / HIDING INDICATORS
@@ -1459,7 +1679,7 @@ async function createNewConversation(callback) {
     } else {
       loadMessages(data.conversation_id);
     }
-  }  catch (error) {
+  } catch (error) {
     console.error("Error creating conversation:", error);
     showToast(`Failed to create a new conversation: ${error.message}`, "danger");
   }
@@ -1469,6 +1689,7 @@ async function createNewConversation(callback) {
  *  SENDING A MESSAGE
  *************************************************/
 function sendMessage() {
+  const promptSelect = document.getElementById("prompt-select");
   const userInput = document.getElementById("user-input");
   
   // If the prompt dropdown is visible, use that value;
@@ -1539,8 +1760,7 @@ function logDocumentSelectionDetails() {
     selectedDocGroupName
   };
 }
-// Update the function that handles sending a message with document context
-// Enhanced function to handle sending a message, preserving default docs functionality
+
 function actuallySendMessage(textVal) {
   const userInput = document.getElementById("user-input");
   appendMessage("You", textVal);
@@ -1549,13 +1769,19 @@ function actuallySendMessage(textVal) {
   console.group("🚀 Sending Message");
   console.log("Message text:", textVal.substring(0, 100) + (textVal.length > 100 ? "..." : ""));
   
-  // Get settings for the request with detailed logging
+  // Updated logic: Set useOpenAiKnowledge based on whether hybridSearchEnabled is false
+  // This means when Search Documents is OFF, use general knowledge instead
   let hybridSearchEnabled = false;
   const sdbtn = document.getElementById("search-documents-btn");
   if (sdbtn && sdbtn.classList.contains("active")) {
     hybridSearchEnabled = true;
   }
   console.log("Hybrid search enabled:", hybridSearchEnabled);
+  
+  // Always set useOpenAiKnowledge to the opposite of hybridSearchEnabled
+  // If hybridSearchEnabled is false, use general knowledge
+  let useOpenAiKnowledge = !hybridSearchEnabled;
+  console.log("Using model's general knowledge:", useOpenAiKnowledge);
 
   let selectedDocumentId = null;
   let documentGroupId = null;
@@ -1606,6 +1832,7 @@ function actuallySendMessage(textVal) {
   const payload = {
     message: textVal,
     conversation_id: currentConversationId,
+    use_open_ai: useOpenAiKnowledge,  // This will be true when Search Documents is OFF
     hybrid_search: hybridSearchEnabled,
     selected_document_id: selectedDocumentId,
     document_group_id: documentGroupId,
@@ -1818,93 +2045,9 @@ function actuallySendMessage(textVal) {
   });
 }
 
-// Update the window.onload function to properly initialize document selection
-window.onload = function() {
-  loadConversations();
-  setupVoiceToText();
-
-  // First load all documents
-  Promise.all([
-    loadAllDocs(),
-    loadUserPrompts(),
-    loadGroupPrompts()
-  ])
-    .then(() => {
-      // Then enable document search after data is loaded
-      const searchDocsBtn = document.getElementById("search-documents-btn");
-      const docScopeSel = document.getElementById("doc-scope-select");
-      const docSelectEl = document.getElementById("document-select");
-
-      if (searchDocsBtn && docScopeSel && docSelectEl) {
-        // Set up document scope selection
-        setupDocumentScopeSelect();
-        
-        // Activate document search by default
-        searchDocsBtn.classList.add("active");
-        docScopeSel.style.display = "inline-block";
-        docSelectEl.style.display = "inline-block";
-        
-        // Make sure to populate the dropdown with the loaded documents
-        setTimeout(() => {
-          populateDocumentSelectScope();
-        }, 100); // Small delay to ensure UI updates
-      }
-    })
-    .catch((err) => {
-      console.error("Error loading initial data:", err);
-    });
-};
-
-
-/*************************************************
- *  USER INPUT EVENT LISTENERS
- *************************************************/
-const sendBtn = document.getElementById("send-btn");
-if (sendBtn) {
-  sendBtn.addEventListener("click", sendMessage);
-}
-
-// userInput is already defined at the top
-if (userInput) {
-  userInput.addEventListener("keypress", function (e) {
-    if (e.key === "Enter") {
-      sendMessage();
-    }
-  });
-}
-
 /*************************************************
  *  FILE UPLOAD LOGIC
  *************************************************/
-const chooseFileBtn = document.getElementById("choose-file-btn");
-if (chooseFileBtn) {
-  chooseFileBtn.addEventListener("click", function () {
-    const fileInput = document.getElementById("file-input");
-    if (fileInput) fileInput.click();
-  });
-}
-
-const fileInputEl = document.getElementById("file-input");
-if (fileInputEl) {
-  fileInputEl.addEventListener("change", function () {
-    const file = fileInputEl.files[0];
-    const fileBtn = document.getElementById("choose-file-btn");
-    const uploadBtn = document.getElementById("upload-btn");
-    if (!fileBtn || !uploadBtn) return;
-
-    if (file) {
-      fileBtn.classList.add("active");
-      const fileBtnText = fileBtn.querySelector(".file-btn-text");
-      if (fileBtnText) {
-        fileBtnText.textContent = file.name;
-      }
-      uploadBtn.style.display = "block";
-    } else {
-      resetFileButton();
-    }
-  });
-}
-
 function resetFileButton() {
   const fileInputEl = document.getElementById("file-input");
   if (fileInputEl) {
@@ -1922,28 +2065,6 @@ function resetFileButton() {
   if (uploadBtn) {
     uploadBtn.style.display = "none";
   }
-}
-
-const uploadBtn = document.getElementById("upload-btn");
-if (uploadBtn) {
-  uploadBtn.addEventListener("click", () => {
-    const fileInput = document.getElementById("file-input");
-    if (!fileInput) return;
-
-    const file = fileInput.files[0];
-    if (!file) {
-      showToast("Please select a file to upload.", "danger");
-      return;
-    }
-
-    if (!currentConversationId) {
-      createNewConversation(() => {
-        uploadFileToConversation(file);
-      });
-    } else {
-      uploadFileToConversation(file);
-    }
-  });
 }
 
 function uploadFileToConversation(file) {
@@ -1991,28 +2112,165 @@ function uploadFileToConversation(file) {
 }
 
 /*************************************************
- *  CITATION LINKS & FILE LINKS
+ *  FEEDBACK SYSTEM
  *************************************************/
-const chatboxEl = document.getElementById("chatbox");
-if (chatboxEl) {
-  chatboxEl.addEventListener("click", (event) => {
-    if (event.target && event.target.matches("a.citation-link")) {
-      event.preventDefault();
-      const citationId = event.target.getAttribute("data-citation-id");
-      fetchCitedText(citationId);
-    } else if (event.target && event.target.matches("a.file-link")) {
-      event.preventDefault();
-      const fileId = event.target.getAttribute("data-file-id");
-      const conversationId = event.target.getAttribute("data-conversation-id");
-      fetchFileContent(conversationId, fileId);
+function renderFeedbackIcons(messageId, conversationId) {
+  if (window.enableUserFeedback && toBoolean(window.enableUserFeedback)) {
+    return `
+      <div class="feedback-icons" data-ai-message-id="${messageId}">
+        <i class="bi bi-hand-thumbs-up-fill text-muted me-3 feedback-btn" 
+          data-feedback-type="positive" 
+          data-conversation-id="${conversationId}"
+          title="Thumbs Up"
+          style="cursor:pointer;"></i>
+        <i class="bi bi-hand-thumbs-down-fill text-muted feedback-btn" 
+          data-feedback-type="negative" 
+          data-conversation-id="${conversationId}"
+          title="Thumbs Down"
+          style="cursor:pointer;"></i>
+      </div>
+    `;
+  }
+  else {
+    return "";
+  }
+}
+
+function submitFeedback(messageId, conversationId, feedbackType, reason) {
+  fetch("/feedback/submit", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      messageId,
+      conversationId,
+      feedbackType,
+      reason
+    }),
+  })
+    .then((resp) => {
+      if (!resp.ok) {
+        return resp.json().then(data => {
+          throw new Error(data.error || `HTTP error ${resp.status}`);
+        }).catch(error => {
+          if (error instanceof SyntaxError) {
+            throw new Error(`HTTP error ${resp.status}`);
+          }
+          throw error;
+        });
+      }
+      return resp.json();
+    })
+    .then((data) => {
+      if (data.success) {
+        // Optionally highlight the icons or show a "thank you" message
+        console.log("Feedback submitted:", data);
+      } else {
+        throw new Error(data.error || "Unknown error");
+      }
+    })
+    .catch((err) => {
+      console.error("Error sending feedback:", err);
+      showToast(`Error sending feedback: ${err.message}`, "danger");
+    });
+}
+
+/*************************************************
+ *  CITATION LINK HANDLING
+ *************************************************/
+function handleCitationClick(citationId) {
+  // Show loading indicator
+  showToast('Loading document...', 'info');
+
+  // Prepare request data with citation ID
+  const requestData = {
+    citation_id: citationId
+  };
+  
+  // Add the specific group ID if known
+  const docSel = document.getElementById("document-select");
+  if (docSel && docSel.value) {
+    const selectedOption = docSel.options[docSel.selectedIndex];
+    if (selectedOption.dataset.isGroup === "true") {
+      requestData.doc_group_id = selectedOption.dataset.groupId;
     }
-    if (event.target.classList.contains("generated-image")) {
-      const imageSrc = event.target.getAttribute("data-image-src");
-      showImagePopup(imageSrc);
+  }
+  
+  // Make the request to get citation details
+  fetch('/api/get_citation', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify(requestData)
+  })
+  .then(response => response.json())
+  .then(data => {
+    if (data.error) {
+      showToast('Error: ' + data.error, 'danger');
+      return;
     }
+    
+    // Set modal title
+    const sourceName = data.document_source.name || 'Document';
+    const sourcePage = data.document_source.page || 1;
+    const citationModalLabel = document.getElementById('citationModalLabel');
+    if (citationModalLabel) {
+      citationModalLabel.textContent = `${sourceName} (Page ${sourcePage})`;
+    }
+    
+    // Create iframe for document viewer
+    const container = document.querySelector('.document-viewer-container');
+    if (container) {
+      container.innerHTML = ''; // Clear any existing content
+      
+      if (data.document_viewer_url) {
+        const iframe = document.createElement('iframe');
+        iframe.style.width = '100%';
+        iframe.style.height = '85vh';
+        iframe.style.border = 'none';
+        iframe.src = data.document_viewer_url;
+        container.appendChild(iframe);
+      } else {
+        // Fallback to displaying text
+        const textContainer = document.createElement('div');
+        textContainer.style.padding = '20px';
+        textContainer.style.backgroundColor = '#f8f9fa';
+        textContainer.style.border = '1px solid #dee2e6';
+        textContainer.style.borderRadius = '4px';
+        textContainer.style.margin = '20px';
+        textContainer.style.maxHeight = '80vh';
+        textContainer.style.overflow = 'auto';
+        textContainer.style.whiteSpace = 'pre-wrap';
+        
+        const header = document.createElement('h6');
+        header.textContent = 'Cited Text:';
+        header.style.marginBottom = '10px';
+        
+        const text = document.createElement('div');
+        text.textContent = data.cited_text || 'No text available';
+        
+        textContainer.appendChild(header);
+        textContainer.appendChild(text);
+        container.appendChild(textContainer);
+      }
+      
+      // Show the citation modal
+      const citationModal = document.getElementById('citation-modal');
+      if (citationModal) {
+        const modal = new bootstrap.Modal(citationModal);
+        modal.show();
+      }
+    }
+  })
+  .catch(error => {
+    console.error('Error fetching citation:', error);
+    showToast('Error loading document citation', 'danger');
   });
 }
 
+/*************************************************
+ *  IMAGE POPUPS
+ *************************************************/
 function showImagePopup(imageSrc) {
   let modalContainer = document.getElementById("image-modal");
   if (!modalContainer) {
@@ -2046,6 +2304,9 @@ function showImagePopup(imageSrc) {
   modal.show();
 }
 
+/*************************************************
+ *  FILE CONTENT FETCHING
+ *************************************************/
 function fetchFileContent(conversationId, fileId) {
   showLoadingIndicator();
   fetch("/api/get_file_content", {
@@ -2142,71 +2403,7 @@ function showFileContentPopup(fileContent, filename, isTable) {
 }
 
 /*************************************************
- *  BOOTSTRAP TOOLTIPS
- *************************************************/
-document.addEventListener("DOMContentLoaded", function () {
-  const tooltipTriggerList = [].slice.call(
-    document.querySelectorAll('[data-bs-toggle="tooltip"]')
-  );
-  tooltipTriggerList.forEach(function (tooltipTriggerEl) {
-    new bootstrap.Tooltip(tooltipTriggerEl);
-  });
-});
-
-/*************************************************
- *  ON PAGE LOAD
- *************************************************/
-window.onload = function () {
-  loadConversations();
-
-  // Use Promise.all to run these in parallel.
-  Promise.all([
-    loadAllDocs(),       // loads personal/group docs
-    loadUserPrompts(),   // loads user prompts
-    loadGroupPrompts()   // loads group prompts
-  ])
-    .then(() => {
-      // Auto-enable document search by default
-      const searchDocsBtn = document.getElementById("search-documents-btn");
-      const docScopeSel = document.getElementById("doc-scope-select");
-      const docSelectEl = document.getElementById("document-select");
-
-      if (searchDocsBtn && docScopeSel && docSelectEl) {
-        // Simulate clicking the search documents button
-        searchDocsBtn.classList.add("active");
-        docScopeSel.style.display = "inline-block";
-        docSelectEl.style.display = "inline-block";
-        populateDocumentSelectScope();
-      }
-
-      // Continue handling URL params if needed
-      const searchDocsParam = getUrlParameter("search_documents") === "true";
-      const docScopeParam = getUrlParameter("doc_scope") || "";
-      const documentIdParam = getUrlParameter("document_id") || "";
-
-      if (searchDocsParam && docScopeParam) {
-        if (docScopeSel) docScopeSel.value = docScopeParam;
-        populateDocumentSelectScope();
-
-        if (documentIdParam && docSelectEl) {
-          docSelectEl.value = documentIdParam;
-        }
-      }
-    })
-    .catch((err) => {
-      console.error("Error loading initial data:", err);
-    });
-};
-
-const newConversationBtn = document.getElementById("new-conversation-btn");
-if (newConversationBtn) {
-  newConversationBtn.addEventListener("click", () => {
-    createNewConversation();
-  });
-}
-
-/*************************************************
- *  OPTIONAL: GET URL PARAM
+ *  UTILITY FUNCTIONS
  *************************************************/
 function getUrlParameter(name) {
   name = name.replace(/[\[]/, "\\[").replace(/[\]]/, "\\]");
@@ -2219,153 +2416,6 @@ function getUrlParameter(name) {
 
 function toBoolean(str) {
   return String(str).toLowerCase() === "true";
-}
-
-/*************************************************
- *  THUMBS UP / DOWN FEEDBACK
- *************************************************/
-function renderFeedbackIcons(messageId, conversationId) {
-  
-  if (window.enableUserFeedback && toBoolean(window.enableUserFeedback)) {
-    return `
-      <div class="feedback-icons" data-ai-message-id="${messageId}">
-        <i class="bi bi-hand-thumbs-up-fill text-muted me-3 feedback-btn" 
-          data-feedback-type="positive" 
-          data-conversation-id="${conversationId}"
-          title="Thumbs Up"
-          style="cursor:pointer;"></i>
-        <i class="bi bi-hand-thumbs-down-fill text-muted feedback-btn" 
-          data-feedback-type="negative" 
-          data-conversation-id="${conversationId}"
-          title="Thumbs Down"
-          style="cursor:pointer;"></i>
-      </div>
-    `;
-  }
-  else {
-    return "";
-  }
-}
-
-// Add event listener for thumbs up/down
-document.addEventListener("click", function (event) {
-  const feedbackBtn = event.target.closest(".feedback-btn");
-  if (!feedbackBtn) return;
-
-  const feedbackType = feedbackBtn.getAttribute("data-feedback-type");
-  const feedbackIcons = feedbackBtn.closest(".feedback-icons");
-  
-  if (!feedbackIcons) {
-    console.error("Could not find parent .feedback-icons element");
-    return;
-  }
-  
-  const messageId = feedbackIcons.getAttribute("data-ai-message-id");
-  const conversationId = feedbackBtn.getAttribute("data-conversation-id");
-
-  if (!messageId || !conversationId) {
-    console.error("Missing required attributes:", { messageId, conversationId });
-    return;
-  }
-
-  // 1) VISUAL FEEDBACK: Add "clicked" class
-  feedbackBtn.classList.add("clicked");
-
-  if (feedbackType === "positive") {
-    // Immediately submit thumbs-up, no reason needed
-    submitFeedback(messageId, conversationId, "positive", "");
-
-    // 2) Remove the class after 500ms or so
-    setTimeout(() => {
-      feedbackBtn.classList.remove("clicked");
-    }, 500);
-  } else {
-    // Thumbs down => open modal for optional reason
-    const feedbackModal = document.getElementById("feedback-modal");
-    if (!feedbackModal) {
-      console.error("Feedback modal not found");
-      return;
-    }
-    
-    const modalEl = new bootstrap.Modal(feedbackModal);
-    
-    const messageIdInput = document.getElementById("feedback-ai-response-id");
-    const conversationIdInput = document.getElementById("feedback-conversation-id");
-    const feedbackTypeInput = document.getElementById("feedback-type");
-    const reasonInput = document.getElementById("feedback-reason");
-    
-    if (messageIdInput) messageIdInput.value = messageId;
-    if (conversationIdInput) conversationIdInput.value = conversationId;
-    if (feedbackTypeInput) feedbackTypeInput.value = "negative";
-    if (reasonInput) reasonInput.value = "";
-    
-    modalEl.show();
-  }
-});
-
-// Form submission for thumbs-down reason
-const feedbackForm = document.getElementById("feedback-form");
-if (feedbackForm) {
-  feedbackForm.addEventListener("submit", (e) => {
-    e.preventDefault();
-    const messageId = document.getElementById("feedback-ai-response-id")?.value;
-    const conversationId = document.getElementById("feedback-conversation-id")?.value;
-    const feedbackType = document.getElementById("feedback-type")?.value;
-    const reason = document.getElementById("feedback-reason")?.value?.trim() || "";
-
-    if (!messageId || !conversationId || !feedbackType) {
-      console.error("Missing required feedback fields");
-      return;
-    }
-
-    // Submit feedback
-    submitFeedback(messageId, conversationId, feedbackType, reason);
-
-    // Hide modal
-    const feedbackModal = document.getElementById("feedback-modal");
-    if (feedbackModal) {
-      const modalEl = bootstrap.Modal.getInstance(feedbackModal);
-      if (modalEl) modalEl.hide();
-    }
-  });
-}
-
-function submitFeedback(messageId, conversationId, feedbackType, reason) {
-  fetch("/feedback/submit", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      messageId,
-      conversationId,
-      feedbackType,
-      reason
-    }),
-  })
-    .then((resp) => {
-      if (!resp.ok) {
-        return resp.json().then(data => {
-          throw new Error(data.error || `HTTP error ${resp.status}`);
-        }).catch(error => {
-          if (error instanceof SyntaxError) {
-            throw new Error(`HTTP error ${resp.status}`);
-          }
-          throw error;
-        });
-      }
-      return resp.json();
-    })
-    .then((data) => {
-      if (data.success) {
-        // Optionally highlight the icons or show a "thank you" message
-        console.log("Feedback submitted:", data);
-      } else {
-        throw new Error(data.error || "Unknown error");
-      }
-    })
-    .catch((err) => {
-      console.error("Error sending feedback:", err);
-      showToast(`Error sending feedback: ${err.message}`, "danger");
-    });
 }
 
 function showToast(message, variant = "danger") {
@@ -2390,220 +2440,9 @@ function showToast(message, variant = "danger") {
   }
 }
 
-
-window.addEventListener('message', function(event) {
-  // Process messages from the PDF viewer iframe
-  if (event.data === 'close-pdf-modal') {
-    const modal = document.getElementById('citation-modal');
-    if (modal) {
-      const modalInstance = bootstrap.Modal.getInstance(modal);
-      if (modalInstance) {
-        modalInstance.hide();
-      }
-    }
-  }
-}, false);
-
-// Add a fix for modal backdrop issues
-document.addEventListener('DOMContentLoaded', function() {
-  // Add event handler for all modals to ensure proper cleanup
-  document.querySelectorAll('.modal').forEach(function(modalEl) {
-    modalEl.addEventListener('hidden.bs.modal', function() {
-      // Remove any lingering modal backdrops
-      const backdrops = document.querySelectorAll('.modal-backdrop');
-      backdrops.forEach(function(backdrop) {
-        backdrop.remove();
-      });
-      
-      // Re-enable scrolling
-      document.body.classList.remove('modal-open');
-      document.body.style.overflow = '';
-      document.body.style.paddingRight = '';
-    });
-  });
-});
-
-// Update this in your chats.js file
-
-
-
-// Function to show an error in a popup when we can't get the document
-function showErrorPopup(errorTitle, errorDetails, documentSource) {
-  let modalContainer = document.getElementById("citation-modal");
-  if (!modalContainer) {
-    modalContainer = document.createElement("div");
-    modalContainer.id = "citation-modal";
-    modalContainer.classList.add("modal", "fade");
-    modalContainer.tabIndex = -1;
-    modalContainer.setAttribute("aria-hidden", "true");
-
-    modalContainer.innerHTML = `
-      <div class="modal-dialog modal-dialog-scrollable modal-lg">
-        <div class="modal-content">
-          <div class="modal-header">
-            <h5 class="modal-title" id="citationModalLabel">Citation Error</h5>
-            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-          </div>
-          <div class="modal-body">
-            <div id="citation-error-content" class="alert alert-warning"></div>
-          </div>
-        </div>
-      </div>
-    `;
-    document.body.appendChild(modalContainer);
-  } else {
-    const modalTitle = modalContainer.querySelector(".modal-title");
-    if (modalTitle) {
-      modalTitle.textContent = `Citation Error`;
-    }
-  }
-
-  const errorContent = document.getElementById("citation-error-content") || 
-                      modalContainer.querySelector(".modal-body");
-  
-  if (errorContent) {
-    // Create informative error message
-    let errorHtml = `
-      <div class="alert alert-warning">
-        <h4>${errorTitle}</h4>
-        <p>${errorDetails}</p>
-    `;
-    
-    // Add document source info if available
-    if (documentSource) {
-      errorHtml += `
-        <hr>
-        <p>
-          <strong>Document:</strong> ${documentSource.name || 'Unknown'}<br>
-          <strong>Page:</strong> ${documentSource.page || '0'}<br>
-          <strong>Workspace:</strong> ${documentSource.workspace_type || 'Unknown'}
-        </p>
-      `;
-    }
-    
-    errorHtml += `
-        <p class="mt-3">
-          <small>You can try the following:</small>
-          <ul>
-            <li>Reload the page and try again</li>
-            <li>Go to your documents workspace to view the document directly</li>
-            <li>Contact support if the issue persists</li>
-          </ul>
-        </p>
-      </div>
-    `;
-    
-    errorContent.innerHTML = errorHtml;
-  }
-
-  const modal = new bootstrap.Modal(modalContainer);
-  modal.show();
-}
-
-// Updated showDocumentInIframe function to use the page number
-function showDocumentInIframe(documentUrl, documentName, pageNumber) {
-  console.log(`Showing document: ${documentName}, page: ${pageNumber}`); 
-  
-  if (!documentUrl) {
-    console.error("Missing document URL");
-    showToast("Error: Document URL not available", "danger");
-    return;
-  }
-  
-  // Get or create the modal
-  let modal = document.getElementById('citation-modal');
-  if (!modal) {
-    modal = document.createElement('div');
-    modal.id = 'citation-modal';
-    modal.className = 'modal fade';
-    modal.setAttribute('tabindex', '-1');
-    modal.setAttribute('aria-hidden', 'true');
-    
-    modal.innerHTML = `
-      <div class="modal-dialog modal-fullscreen">
-        <div class="modal-content">
-          <div class="modal-header">
-            <h5 class="modal-title"></h5>
-            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-          </div>
-          <div class="modal-body p-0">
-            <div class="document-viewer-container" style="width: 100%; height: 90vh;"></div>
-          </div>
-        </div>
-      </div>
-    `;
-    
-    document.body.appendChild(modal);
-  }
-  
-  // Set the modal title with exact page number
-  const modalTitle = modal.querySelector('.modal-title');
-  if (modalTitle) {
-    modalTitle.textContent = `Source: ${documentName}, Page: ${pageNumber}`;
-  }
-  
-  // Get the container
-  const container = modal.querySelector('.document-viewer-container');
-  if (!container) {
-    console.error("Document viewer container not found");
-    return;
-  }
-  
-  // Clear any existing content
-  container.innerHTML = '';
-  
-  // Add a loading indicator
-  const loadingDiv = document.createElement('div');
-  loadingDiv.className = 'spinner-border text-primary';
-  loadingDiv.role = 'status';
-  loadingDiv.style = 'position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);';
-  loadingDiv.innerHTML = '<span class="visually-hidden">Loading...</span>';
-  container.appendChild(loadingDiv);
-  
-  // Create the proxy URL for the document
-  const proxyUrl = `/document-proxy?url=${encodeURIComponent(documentUrl)}`;
-  
-  // Create the PDF viewer URL with the exact page number
-  const randomParam = Math.floor(Math.random() * 1000000);
-  // In showDocumentInIframe function in chats.js
-  const viewerUrl = `/pdf-viewer?file=${encodeURIComponent(proxyUrl)}&page=${pageNumber}&zoom=100&nocache=${randomParam}`;
-  
-  console.log("PDF Viewer URL:", viewerUrl);
-  
-  // Create iframe to load the PDF viewer
-  const iframe = document.createElement('iframe');
-  iframe.src = viewerUrl;
-  iframe.style = 'width: 100%; height: 100%; border: none;';
-  iframe.allow = 'fullscreen';
-  iframe.id = 'pdf-iframe';
-  
-  // When iframe loads, remove the loading indicator
-  iframe.onload = function() {
-    if (loadingDiv && loadingDiv.parentNode) {
-      loadingDiv.parentNode.removeChild(loadingDiv);
-    }
-  };
-  
-  // If iframe fails to load, show error
-  iframe.onerror = function() {
-    console.error("Error loading PDF iframe");
-    container.innerHTML = `
-      <div class="alert alert-danger m-3">
-        <h4>Error Loading Document</h4>
-        <p>There was a problem loading the PDF. Please try again later.</p>
-      </div>
-    `;
-  };
-  
-  // Add the iframe to the container
-  container.appendChild(iframe);
-  
-  // Show the modal
-  const bsModal = new bootstrap.Modal(modal);
-  bsModal.show();
-}
-// Add this to your chats.js file
-
+/*************************************************
+ *  VOICE TO TEXT
+ *************************************************/
 function setupVoiceToText() {
   const userInput = document.getElementById('user-input');
   const voiceButton = document.getElementById('voice-input-btn');
@@ -2622,7 +2461,7 @@ function setupVoiceToText() {
   const recognition = new SpeechRecognition();
   
   recognition.continuous = false;
-  recognition.interimResults = false; // Changed to false to avoid duplicates
+  recognition.interimResults = false;
   recognition.lang = 'en-US';
   
   let isRecognizing = false;
@@ -2634,7 +2473,6 @@ function setupVoiceToText() {
       
       // Update the input field with the recognized text
       if (userInput) {
-        // Clear any existing value to prevent duplication
         userInput.value = transcript;
       }
     }
@@ -2713,41 +2551,7 @@ function setupVoiceToText() {
   }
 }
 
-window.onload = function() {
-  loadConversations();
-  setupVoiceToText();
 
-  // First load all documents
-  Promise.all([
-    loadAllDocs(),
-    loadUserPrompts(),
-    loadGroupPrompts()
-  ])
-    .then(() => {
-      // Then enable document search after data is loaded
-      const searchDocsBtn = document.getElementById("search-documents-btn");
-      const docScopeSel = document.getElementById("doc-scope-select");
-      const docSelectEl = document.getElementById("document-select");
-
-      if (searchDocsBtn && docScopeSel && docSelectEl) {
-        // Set up document scope selection
-        setupDocumentScopeSelect();
-        
-        // Activate document search by default
-        searchDocsBtn.classList.add("active");
-        docScopeSel.style.display = "inline-block";
-        docSelectEl.style.display = "inline-block";
-        
-        // Make sure to populate the dropdown with the loaded documents
-        setTimeout(() => {
-          populateDocumentSelectScope();
-        }, 100); // Small delay to ensure UI updates
-      }
-    })
-    .catch((err) => {
-      console.error("Error loading initial data:", err);
-    });
-};
 
 // Add CSS classes for the voice button states
 // This can be added inline or in your CSS file
@@ -3064,71 +2868,4 @@ document.addEventListener('click', function(event) {
           handleCitationClick(citationId);
       }
   }
-});
-
-
-
-function enhanceSearchDocumentsBtn() {
-  const searchDocumentsBtn = document.getElementById("search-documents-btn");
-  if (!searchDocumentsBtn) return;
-  
-  // Replace with enhanced version
-  searchDocumentsBtn.addEventListener("click", function() {
-    console.group("🔎 Document Search Button Toggle");
-    
-    const wasActive = this.classList.contains("active");
-    console.log("Was active before click:", wasActive);
-    
-    // Toggle active state
-    this.classList.toggle("active");
-    const isNowActive = this.classList.contains("active");
-    console.log("Is active after click:", isNowActive);
-
-    const docScopeSel = document.getElementById("doc-scope-select");
-    const docSelectEl = document.getElementById("document-select");
-    if (!docScopeSel || !docSelectEl) {
-      console.warn("Document scope or select elements not found");
-      console.groupEnd();
-      return;
-    }
-
-    if (isNowActive) {
-      console.log("Enabling document selection UI");
-      docScopeSel.style.display = "inline-block";
-      docSelectEl.style.display = "inline-block";
-      
-      // Load personal and group documents if needed
-      console.log("Loading documents...");
-      const personalLoaded = personalDocs.length > 0;
-      const groupLoaded = groupDocs.length > 0;
-      
-      console.log("Personal docs already loaded:", personalLoaded, "count:", personalDocs.length);
-      console.log("Group docs already loaded:", groupLoaded, "count:", groupDocs.length);
-      
-      if (!personalLoaded || !groupLoaded) {
-        console.log("Need to load documents, calling loadAllDocs()");
-        loadAllDocs().then(() => {
-          console.log("Documents loaded, populating document select");
-          setupDocumentScopeSelect();
-          populateDocumentSelectScope();
-        });
-      } else {
-        console.log("Documents already loaded, populating document select");
-        setupDocumentScopeSelect();
-        populateDocumentSelectScope();
-      }
-    } else {
-      console.log("Disabling document selection UI");
-      docScopeSel.style.display = "none";
-      docSelectEl.style.display = "none";
-      docSelectEl.innerHTML = "";
-    }
-    
-    console.groupEnd();
-  });
-}
-
-// Call this function after DOM is loaded
-document.addEventListener("DOMContentLoaded", function() {
-  enhanceSearchDocumentsBtn();
 });

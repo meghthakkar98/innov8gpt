@@ -29,7 +29,7 @@ def extract_content_with_azure_di(file_path):
                 document=f
             )
         
-        max_wait_time = 1600
+        max_wait_time = 10000
         start_time = time.time()
 
         while True:

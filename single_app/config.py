@@ -336,5 +336,3 @@ def initialize_clients(settings):
 
         print("Client initialization complete")
 
-# Remove the circular import at the bottom - THIS IS THE KEY CHANGE
-# from functions_blob_storage import download_from_blob_storage

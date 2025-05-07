@@ -33,7 +33,8 @@ from route_backend_prompts import *
 from route_backend_group_prompts import *
 from route_frontend_default_documents import *
 from route_backend_default_documents import *
-from route_document_viewer import register_route_document_viewer
+from route_document_viewer import *
+
 
 logging.basicConfig(level=logging.DEBUG)
 

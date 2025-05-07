@@ -43,6 +43,7 @@ def upload_to_blob_storage(file_content, file_name, content_type=None):
         raise
 
 def download_from_blob_storage(blob_url):
+
     """
     Download file content from Azure Blob Storage
     """
@@ -72,6 +73,7 @@ def download_from_blob_storage(blob_url):
         raise
 
 def get_blob_properties(blob_url):
+    
     """
     Get properties of a blob
     

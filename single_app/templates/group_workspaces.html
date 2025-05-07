@@ -6,6 +6,133 @@
 
 {% block head %}
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/simplemde/dist/simplemde.min.css">
+    <!-- Add Bootstrap Icons for the upload UI -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css">
+    
+    <!-- Document Upload Styling -->
+    <style>
+        /* Document Upload Styling */
+        .upload-container {
+          background-color: #ffffff;
+          border: 1px solid #dee2e6;
+          border-radius: 8px;
+          padding: 20px;
+          box-shadow: 0 2px 10px rgba(0,0,0,0.05);
+        }
+
+        .upload-header {
+          margin-bottom: 15px;
+          border-bottom: 1px solid #e9ecef;
+          padding-bottom: 15px;
+        }
+
+        .upload-header h5 {
+          font-size: 1.25rem;
+          font-weight: 600;
+          color: #333;
+          margin-bottom: 5px;
+        }
+
+        .upload-instruction {
+          color: #6c757d;
+          margin-bottom: 0;
+        }
+
+        .upload-dropzone {
+          border: 2px dashed #a0c7f0;
+          border-radius: 6px;
+          background-color: #f7faff;
+          padding: 30px 20px;
+          text-align: center;
+          cursor: pointer;
+          transition: all 0.3s ease;
+          margin-bottom: 20px;
+        }
+
+        .upload-dropzone:hover {
+          background-color: #ebf4ff;
+          border-color: #5fa7ee;
+        }
+
+        .upload-dropzone.drag-over {
+          background-color: #e1efff;
+          border-color: #0d6efd;
+        }
+
+        .upload-icon {
+          font-size: 3rem;
+          color: #6c757d;
+          margin-bottom: 15px;
+          display: block;
+        }
+
+        .drag-text {
+          font-size: 1.1rem;
+          color: #495057;
+          margin-bottom: 5px;
+        }
+
+        .drag-text-small {
+          color: #6c757d;
+          margin-bottom: 15px;
+        }
+
+        .file-input-label {
+          background-color: #0d6efd;
+          color: white;
+          font-size: 1rem;
+          padding: 8px 20px;
+          border-radius: 4px;
+          cursor: pointer;
+          transition: background-color 0.2s;
+          display: inline-block;
+          margin-bottom: 15px;
+        }
+
+        .file-input-label:hover {
+          background-color: #0b5ed7;
+        }
+
+        .file-input-hidden {
+          opacity: 0;
+          position: absolute;
+          z-index: -1;
+        }
+
+        .file-info {
+          color: #6c757d;
+          margin-top: 10px;
+          font-size: 0.95rem;
+        }
+
+        .upload-action {
+          text-align: center;
+        }
+
+        .upload-btn {
+          font-size: 1.1rem;
+          padding: 10px 25px;
+        }
+
+        .upload-btn:disabled {
+          cursor: not-allowed;
+        }
+
+        /* Loading Spinner Enhancement for better visibility */
+        #loadingModal .modal-content {
+          background-color: rgba(255, 255, 255, 0.9);
+        }
+
+        #loadingModal .spinner-border {
+          width: 3rem;
+          height: 3rem;
+        }
+
+        #loadingModal p {
+          font-size: 1.2rem;
+          margin-top: 20px;
+        }
+    </style>
 {% endblock %}
 
 {% block content %}
@@ -37,13 +164,13 @@
         aria-controls="management-tab"
         aria-selected="false"
       >
-      Channel Management
+      Channel Settings
       </button>
     </li>
   </ul>
 
   <h2 style="margin-top: 2.5%;">Channels Workspace</h2>
-  <h3 id="active-group-name" style="display:none"></h3>
+  
 
   <!-- Group Selector and Role Display (applies to both tabs) -->
   <div class="row mb-3">
@@ -52,6 +179,7 @@
     </div>
     <!-- Change Active Group button removed, using dropdown change event instead -->
   </div>
+  
 
   <div class="alert alert-info" id="user-role-display" style="display: none">
     Your role in this Channels: <span id="user-role"></span>
@@ -98,6 +226,9 @@
         </li>
       </ul>
 
+      <h3 id="active-group-name" style="display:none"></h3>
+      
+
       <!-- Nested Tab Panes -->
       <div class="tab-content" id="channelsSubTabContent">
         <!-- ============= GROUP DOCUMENTS TAB ============= -->
@@ -108,13 +239,32 @@
           aria-labelledby="documents-tab-btn"
         >
           <div class="card p-3 my-3">
-            <h5>Channels Documents</h5>
 
             <!-- Document Upload (only if role = Owner/Admin/DocumentManager) -->
-            <div class="mb-3" id="upload-section" style="display: none">
-              <label for="file-input" class="form-label">Upload Document:</label>
-              <input type="file" id="file-input" />
-              <button id="upload-btn" class="btn btn-primary">Upload Document</button>
+            <div class="mb-4" id="upload-section" style="display: none">
+              <div class="upload-container">
+                <div class="upload-header">
+                  <h5><i class="bi bi-file-earmark-arrow-up"></i> Upload Document</h5>
+                  <p class="upload-instruction">Share documents with your channel members</p>
+                </div>
+                
+                <div class="upload-dropzone" id="upload-dropzone">
+                  <i class="bi bi-cloud-arrow-up upload-icon"></i>
+                  <p class="drag-text">Drag and drop your file here</p>
+                  <p class="drag-text-small">or</p>
+                  <label for="file-input" class="file-input-label">
+                    <i class="bi bi-folder"></i> Browse Files
+                  </label>
+                  <input type="file" id="file-input" class="file-input-hidden" />
+                  <p class="file-info" id="file-info">No file selected</p>
+                </div>
+                
+                <div class="upload-action">
+                  <button id="upload-btn" class="btn btn-lg btn-primary upload-btn" disabled>
+                    <i class="bi bi-upload"></i> Upload Document
+                  </button>
+                </div>
+              </div>
             </div>
 
             <!-- Documents List -->
@@ -124,7 +274,6 @@
                   <th>File Name</th>
                   <th>Upload Date</th>
                   <th>Version</th>
-                  <th>Chunk Count</th>
                   <th>Actions</th>
                 </tr>
               </thead>
@@ -185,6 +334,7 @@
       <div class="card p-3 my-3">
         <h5>My Channels</h5>
 
+        {% if session.get('user') and 'Admin' in session['user']['roles'] %}
         <!-- Create Group Button trigger modal -->
         <button
           type="button"
@@ -195,7 +345,8 @@
         >
           Create New Channel
         </button>
-
+        {% endif %}
+        
         <!-- Find Group Button trigger modal -->
         <button
           type="button"
@@ -717,23 +868,23 @@
         }
         
         (data.documents || []).forEach((doc) => {
-          const tr = document.createElement("tr");
-          tr.innerHTML = `
-            <td>${doc.file_name}</td>
-            <td>${new Date(doc.upload_date).toLocaleString()}</td>
-            <td>${doc.version}</td>
-            <td>${doc.num_chunks}</td>
-            <td>
-              ${
-                ["Owner", "Admin", "DocumentManager"].includes(userRoleInActiveGroup)
-                  ? `<button class="btn btn-sm btn-danger" onclick="onDeleteDocument('${doc.id}', '${doc.group_id}')">Delete</button>`
-                  : ``
-              }
-              <button class="btn btn-sm btn-primary" onclick="onSearchInChat('${doc.id}')">Search in Chat</button>
-            </td>
-          `;
-          tbody.appendChild(tr);
-        });
+        const tr = document.createElement("tr");
+        tr.innerHTML = `
+          <td>${doc.file_name}</td>
+          <td>${new Date(doc.upload_date).toLocaleString()}</td>
+          <td>${doc.version}</td>
+          <td>
+            ${
+              ["Owner", "Admin", "DocumentManager"].includes(userRoleInActiveGroup)
+                ? `<button class="btn btn-sm btn-danger" onclick="onDeleteDocument('${doc.id}', '${doc.group_id}')">Delete</button>`
+                : ``
+            }
+            <button class="btn btn-sm btn-primary" onclick="onSearchInChat('${doc.id}')">Search in Chat</button>
+            <button class="btn btn-sm btn-info" onclick="viewGroupDocument('${doc.id}', '${activeGroupId}')">View</button>
+          </td>
+        `;
+        tbody.appendChild(tr);
+      });
       })
       .catch((err) => {
         console.error("Error fetching group documents:", err);
@@ -742,6 +893,10 @@
           tbody.innerHTML = `<tr><td colspan='5' class='text-center text-danger'>Error: ${err.message}</td></tr>`;
         }
       });
+  }
+
+  function viewGroupDocument(documentId, groupId) {
+    window.open(`/document-viewer?file=/api/group_documents/${documentId}/download?group_id=${groupId}&name=${encodeURIComponent(document.querySelector(`tr:has(button[onclick="viewGroupDocument('${documentId}', '${groupId}')"]) td:first-child`).textContent)}`, '_blank');
   }
 
   function onDeleteDocument(docId, groupId) {
@@ -1471,6 +1626,723 @@ function showToast(message, type = 'info') {
   toastEl.addEventListener('hidden.bs.toast', function() {
     toastEl.remove();
   });
+}
+
+
+// Add this function to your existing script section 
+// (should be placed at the beginning of the DOMContentLoaded event handler)
+
+document.addEventListener("DOMContentLoaded", () => {
+  // Initialize Bootstrap modals
+  groupPromptModal = new bootstrap.Modal(document.getElementById("groupPromptModal"));
+  loadingModal = new bootstrap.Modal(document.getElementById("loadingModal"));
+  
+  // Initialize the improved document upload UI
+  initializeDocumentUpload();
+  
+  // Initialize SimpleMDE
+  if (groupPromptContentEl) {
+    groupSimplemde = new SimpleMDE({
+      element: groupPromptContentEl,
+      spellChecker: false // or true, depending on preference
+    });
+  }
+  
+  // Rest of your original initialization code...
+});
+
+// Add this new function to initialize the document upload UI
+function initializeDocumentUpload() {
+  const dropzone = document.getElementById('upload-dropzone');
+  const fileInput = document.getElementById('file-input');
+  const fileInfo = document.getElementById('file-info');
+  const uploadBtn = document.getElementById('upload-btn');
+  const browseLabel = document.querySelector('.file-input-label');
+  
+  if (!dropzone || !fileInput || !fileInfo || !uploadBtn) return;
+  
+  // Handle drag and drop events
+  dropzone.addEventListener('dragover', (e) => {
+    e.preventDefault();
+    dropzone.classList.add('drag-over');
+  });
+  
+  dropzone.addEventListener('dragleave', () => {
+    dropzone.classList.remove('drag-over');
+  });
+  
+  dropzone.addEventListener('drop', (e) => {
+    e.preventDefault();
+    dropzone.classList.remove('drag-over');
+    
+    if (e.dataTransfer.files.length) {
+      fileInput.files = e.dataTransfer.files;
+      updateFileInfo(fileInput.files[0]);
+    }
+  });
+  
+  // Handle click on dropzone to trigger file input - BUT EXCLUDE the browse button
+  dropzone.addEventListener('click', (e) => {
+    // Only trigger the file input if the click wasn't on the browse button
+    // This prevents double triggering since the label already activates the input
+    if (!e.target.closest('.file-input-label')) {
+      fileInput.click();
+    }
+  });
+  
+  // The browse button (label) will trigger the file input automatically
+  // because of the HTML association - no need for an event handler
+  
+  // Handle file selection
+  fileInput.addEventListener('change', () => {
+    if (fileInput.files.length > 0) {
+      updateFileInfo(fileInput.files[0]);
+    } else {
+      fileInfo.textContent = 'No file selected';
+      uploadBtn.disabled = true;
+    }
+  });
+  
+  // Update file info display
+  function updateFileInfo(file) {
+    // Format file size
+    const size = file.size;
+    let sizeStr = '';
+    
+    if (size < 1024) {
+      sizeStr = size + ' bytes';
+    } else if (size < 1024 * 1024) {
+      sizeStr = (size / 1024).toFixed(1) + ' KB';
+    } else {
+      sizeStr = (size / (1024 * 1024)).toFixed(1) + ' MB';
+    }
+    
+    fileInfo.innerHTML = `<strong>${file.name}</strong> (${sizeStr})`;
+    fileInfo.style.color = '#0d6efd';
+    uploadBtn.disabled = false;
+  }
+}
+
+// Replace your existing onUploadClick function with this improved version
+function onUploadClick() {
+  const fileInput = document.getElementById("file-input");
+  if (!fileInput) {
+    console.error("File input element not found");
+    return;
+  }
+  
+  const file = fileInput.files[0];
+  if (!file) {
+    alert("Please select a file to upload.");
+    return;
+  }
+  
+  // Add validation for file size (e.g., 50MB max)
+  const maxSize = 50 * 1024 * 1024; // 50MB in bytes
+  if (file.size > maxSize) {
+    alert("File is too large. Maximum size is 50MB.");
+    return;
+  }
+  
+  // Show loading indicator with the file name
+  const loadingMessage = document.querySelector("#loadingModal .modal-body p");
+  if (loadingMessage) {
+    loadingMessage.textContent = `Uploading "${file.name}", please wait...`;
+  }
+  
+  let formData = new FormData();
+  formData.append("file", file);
+  
+  if (loadingModal) {
+    loadingModal.show();
+  }
+  
+  // Disable the upload button during upload
+  const uploadBtn = document.getElementById("upload-btn");
+  if (uploadBtn) {
+    uploadBtn.disabled = true;
+  }
+  
+  fetch("/api/group_documents/upload", {
+    method: "POST",
+    body: formData,
+  })
+    .then((response) => {
+      if (!response.ok) {
+        throw new Error(`HTTP error ${response.status}: ${response.statusText}`);
+      }
+      return response.json();
+    })
+    .then((data) => {
+      if (data.error) {
+        alert("Error uploading document: " + data.error);
+        throw new Error(data.error);
+      }
+      
+      // Reset the file input and info text
+      if (fileInput) {
+        fileInput.value = "";
+        const fileInfo = document.getElementById("file-info");
+        if (fileInfo) {
+          fileInfo.textContent = "No file selected";
+          fileInfo.style.color = '#6c757d';
+        }
+      }
+      
+      // Show success message
+      showToast(data.message || "Document uploaded successfully!", "success");
+      
+      // Refresh document list
+      fetchGroupDocuments();
+    })
+    .catch((err) => {
+      console.error(err);
+      showToast("Error uploading document: " + err.message, "danger");
+    })
+    .finally(() => {
+      if (loadingModal) {
+        loadingModal.hide();
+      }
+      
+      // Re-enable the upload button
+      if (uploadBtn) {
+        uploadBtn.disabled = true; // Keep disabled until a new file is selected
+      }
+    });
+}
+
+
+// Enhanced viewGroupDocument function with better error handling
+function viewGroupDocument(documentId, groupId) {
+  // Show loading indicator
+  showToast('Loading document...', 'info');
+  
+  // Validate inputs
+  if (!documentId) {
+    showToast('Error: Missing document ID', 'danger');
+    return;
+  }
+  
+  if (!groupId) {
+    showToast('Error: Missing group ID', 'danger');
+    return;
+  }
+  
+  console.log(`Viewing document: ID=${documentId}, Group=${groupId}`);
+  
+  // Make the request to get document details
+  fetch('/api/get_document_view', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({
+      document_id: documentId,
+      doc_type: 'group',
+      group_id: groupId
+    })
+  })
+  .then(response => {
+    // Handle HTTP errors first
+    if (!response.ok) {
+      return response.json().then(data => {
+        throw new Error(`Server error: ${data.error || response.statusText} (${response.status})`);
+      }).catch(err => {
+        // If JSON parsing fails, use the HTTP status text
+        throw new Error(`Server error: ${response.statusText} (${response.status})`);
+      });
+    }
+    return response.json();
+  })
+  .then(data => {
+    console.log("Document view data:", data);
+    
+    if (data.error) {
+      showToast('Error: ' + data.error, 'danger');
+      return;
+    }
+    
+    // Show document in viewer based on available data
+    if (data.document_viewer_url) {
+      showDocumentInUniversalViewer(data);
+    } 
+    else if (data.document_url || data.document_proxy_url) {
+      // Use proxy URL if available, fall back to direct URL
+      const url = data.document_proxy_url || data.document_url;
+      var pageNumber = 1;
+      if (data.document_source && typeof data.document_source.page !== 'undefined') {
+        pageNumber = data.document_source.page;
+      }
+      
+      var documentName = "Document";
+      if (data.document_source && data.document_source.name) {
+        documentName = data.document_source.name;
+      }
+      
+      // Use the document viewer
+      showDocumentInIframe(url, documentName, pageNumber);
+    }
+    else if (data.cited_text) {
+      var sourceName = "Unknown Document";
+      var sourcePage = 1;
+      
+      if (data.document_source) {
+        if (data.document_source.name) {
+          sourceName = data.document_source.name;
+        }
+        if (typeof data.document_source.page !== 'undefined') {
+          sourcePage = data.document_source.page;
+        }
+      }
+      
+      showCitedTextPopup(data.cited_text, sourceName, sourcePage);
+    }
+    else {
+      // Offer download as fallback if viewing isn't possible
+      if (data.download_url) {
+        showToast(`Couldn't display document. <a href="${data.download_url}" class="alert-link" target="_blank">Download instead</a>`, 'warning');
+      } else {
+        showToast("Couldn't display document. Try downloading instead.", 'warning');
+      }
+    }
+  })
+  .catch(error => {
+    console.error('Error fetching document view:', error);
+    
+    // Create a more descriptive error message with debugging information
+    let errorMessage = 'Error loading document view';
+    if (error.message) {
+      errorMessage += ': ' + error.message;
+    }
+    
+    // Create an easier way for users to share error info with IT support
+    const errorDetails = {
+      documentId: documentId,
+      groupId: groupId,
+      timestamp: new Date().toISOString(),
+      error: error.toString()
+    };
+    
+    // Store error info in sessionStorage for troubleshooting
+    sessionStorage.setItem('lastDocumentViewError', JSON.stringify(errorDetails));
+    
+    showToast(errorMessage, 'danger');
+  });
+}
+
+function showDocumentInUniversalViewer(data) {
+  console.log("Using universal document viewer with data:", data);
+  
+  // Get or create the modal
+  let modal = document.getElementById('citation-modal');
+  if (!modal) {
+    modal = document.createElement('div');
+    modal.id = 'citation-modal';
+    modal.className = 'modal fade';
+    modal.setAttribute('tabindex', '-1');
+    modal.setAttribute('aria-hidden', 'true');
+    
+    // Changed from modal-fullscreen to custom styling
+    modal.innerHTML = `
+      <div class="modal-dialog" style="max-width: 90%; width: 90%; margin: 1.75rem auto;">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h5 class="modal-title"></h5>
+            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+          </div>
+          <div class="modal-body p-0">
+            <div class="document-viewer-container" style="width: 100%; height: 80vh;"></div>
+          </div>
+        </div>
+      </div>
+    `;
+    
+    document.body.appendChild(modal);
+  } else {
+    // Update existing modal with new size
+    const modalDialog = modal.querySelector('.modal-dialog');
+    if (modalDialog) {
+      modalDialog.className = 'modal-dialog';
+      modalDialog.style.maxWidth = '90%';
+      modalDialog.style.width = '90%';
+      modalDialog.style.margin = '1.75rem auto';
+    }
+    
+    // Update the document container height
+    const container = modal.querySelector('.document-viewer-container');
+    if (container) {
+      container.style.width = '100%';
+      container.style.height = '80vh';
+    }
+  }
+  
+  // Set the modal title
+  const docName = data.document_source?.name || "Document";
+  const docPage = data.document_source?.page || 1;
+  const fileType = data.document_source?.file_type || "";
+  
+  const modalTitle = modal.querySelector('.modal-title');
+  if (modalTitle) {
+    // Add file type info to the title
+    let titleText = `Source: ${docName}`;
+    if (docPage) {
+      titleText += `, Page: ${docPage}`;
+    }
+    if (fileType) {
+      titleText += ` (${fileType.toUpperCase()})`;
+    }
+    modalTitle.textContent = titleText;
+  }
+  
+  // Get the container
+  const container = modal.querySelector('.document-viewer-container');
+  if (!container) {
+    console.error("Document viewer container not found");
+    return;
+  }
+  
+  // Clear any existing content
+  container.innerHTML = '';
+  
+  // Add a loading indicator
+  const loadingDiv = document.createElement('div');
+  loadingDiv.className = 'spinner-border text-primary';
+  loadingDiv.role = 'status';
+  loadingDiv.style = 'position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);';
+  loadingDiv.innerHTML = '<span class="visually-hidden">Loading...</span>';
+  container.appendChild(loadingDiv);
+  
+  // Create iframe to load the universal document viewer
+  const iframe = document.createElement('iframe');
+  iframe.src = data.document_viewer_url;
+  iframe.style = 'width: 100%; height: 100%; border: none;';
+  iframe.allow = 'fullscreen';
+  iframe.id = 'document-viewer-iframe';
+  
+  // When iframe loads, remove the loading indicator
+  iframe.onload = function() {
+    if (loadingDiv && loadingDiv.parentNode) {
+      loadingDiv.parentNode.removeChild(loadingDiv);
+    }
+  };
+  
+  // If iframe fails to load, show error
+  iframe.onerror = function() {
+    console.error("Error loading document viewer iframe");
+    container.innerHTML = `
+      <div class="alert alert-danger m-3">
+        <h4>Error Loading Document</h4>
+        <p>There was a problem loading the document. Please try again later.</p>
+      </div>
+    `;
+  };
+  
+  // Add the iframe to the container
+  container.appendChild(iframe);
+  
+  // Show the modal
+  const bsModal = new bootstrap.Modal(modal);
+  bsModal.show();
+}
+
+
+function showDocumentInIframe(documentUrl, documentName, pageNumber) {
+  console.log(`Showing document: ${documentName}, page: ${pageNumber}`); 
+  
+  if (!documentUrl) {
+    console.error("Missing document URL");
+    showToast("Error: Document URL not available", "danger");
+    return;
+  }
+  
+  // Get or create the modal
+  let modal = document.getElementById('citation-modal');
+  if (!modal) {
+    modal = document.createElement('div');
+    modal.id = 'citation-modal';
+    modal.className = 'modal fade';
+    modal.setAttribute('tabindex', '-1');
+    modal.setAttribute('aria-hidden', 'true');
+    
+    // Changed from modal-fullscreen to custom styling
+    modal.innerHTML = `
+      <div class="modal-dialog" style="max-width: 90%; width: 90%; margin: 1.75rem auto;">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h5 class="modal-title"></h5>
+            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+          </div>
+          <div class="modal-body p-0">
+            <div class="document-viewer-container" style="width: 100%; height: 80vh;"></div>
+          </div>
+        </div>
+      </div>
+    `;
+    
+    document.body.appendChild(modal);
+  } else {
+    // Update existing modal with new size
+    const modalDialog = modal.querySelector('.modal-dialog');
+    if (modalDialog) {
+      modalDialog.className = 'modal-dialog';
+      modalDialog.style.maxWidth = '90%';
+      modalDialog.style.width = '90%';
+      modalDialog.style.margin = '1.75rem auto';
+    }
+    
+    // Update the document container height
+    const container = modal.querySelector('.document-viewer-container');
+    if (container) {
+      container.style.width = '100%';
+      container.style.height = '80vh';
+    }
+  }
+  
+  // Set the modal title with exact page number
+  const modalTitle = modal.querySelector('.modal-title');
+  if (modalTitle) {
+    modalTitle.textContent = `Source: ${documentName}, Page: ${pageNumber}`;
+  }
+  
+  // Get the container
+  const container = modal.querySelector('.document-viewer-container');
+  if (!container) {
+    console.error("Document viewer container not found");
+    return;
+  }
+  
+  // Clear any existing content
+  container.innerHTML = '';
+  
+  // Add a loading indicator
+  const loadingDiv = document.createElement('div');
+  loadingDiv.className = 'spinner-border text-primary';
+  loadingDiv.role = 'status';
+  loadingDiv.style = 'position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);';
+  loadingDiv.innerHTML = '<span class="visually-hidden">Loading...</span>';
+  container.appendChild(loadingDiv);
+  
+  // Determine if we need to use document-proxy
+  let viewerUrl;
+  if (documentUrl.startsWith('/document-proxy') || documentUrl.startsWith('http')) {
+    // It's already a proxy URL or an absolute URL
+    viewerUrl = `/pdf-viewer?file=${encodeURIComponent(documentUrl)}&page=${pageNumber}`;
+  } else {
+    // We need to proxy it
+    const proxyUrl = `/document-proxy?url=${encodeURIComponent(documentUrl)}`;
+    viewerUrl = `/pdf-viewer?file=${encodeURIComponent(proxyUrl)}&page=${pageNumber}`;
+  }
+  
+  // Add a random parameter to prevent caching issues
+  const randomParam = Math.floor(Math.random() * 1000000);
+  viewerUrl += `&zoom=100&nocache=${randomParam}`;
+  
+  console.log("Document viewer URL:", viewerUrl);
+  
+  // Create iframe to load the document viewer
+  const iframe = document.createElement('iframe');
+  iframe.src = viewerUrl;
+  iframe.style = 'width: 100%; height: 100%; border: none;';
+  iframe.allow = 'fullscreen';
+  iframe.id = 'document-iframe';
+  
+  // When iframe loads, remove the loading indicator
+  iframe.onload = function() {
+    if (loadingDiv && loadingDiv.parentNode) {
+      loadingDiv.parentNode.removeChild(loadingDiv);
+    }
+  };
+  
+  // If iframe fails to load, show error
+  iframe.onerror = function() {
+    console.error("Error loading document iframe");
+    container.innerHTML = `
+      <div class="alert alert-danger m-3">
+        <h4>Error Loading Document</h4>
+        <p>There was a problem loading the document. Please try again later.</p>
+        <p><small>URL: ${viewerUrl}</small></p>
+      </div>
+    `;
+  };
+  
+  // Add the iframe to the container
+  container.appendChild(iframe);
+  
+  // Show the modal
+  const bsModal = new bootstrap.Modal(modal);
+  bsModal.show();
+}
+
+
+
+// Helper function for showing toast messages
+function showToast(message, type = 'info') {
+  // Create toast container if it doesn't exist
+  let toastContainer = document.getElementById('toast-container');
+  if (!toastContainer) {
+    toastContainer = document.createElement('div');
+    toastContainer.id = 'toast-container';
+    toastContainer.className = 'position-fixed bottom-0 end-0 p-3';
+    toastContainer.style.zIndex = '5000';
+    document.body.appendChild(toastContainer);
+  }
+  
+  // Create toast element
+  const toastEl = document.createElement('div');
+  toastEl.className = `toast align-items-center text-white bg-${type} border-0`;
+  toastEl.setAttribute('role', 'alert');
+  toastEl.setAttribute('aria-live', 'assertive');
+  toastEl.setAttribute('aria-atomic', 'true');
+  
+  toastEl.innerHTML = `
+    <div class="d-flex">
+      <div class="toast-body">
+        ${message}
+      </div>
+      <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast" aria-label="Close"></button>
+    </div>
+  `;
+  
+  toastContainer.appendChild(toastEl);
+  
+  // Initialize and show the toast
+  const toast = new bootstrap.Toast(toastEl, { delay: 5000 });
+  toast.show();
+  
+  // Remove the toast element after it's hidden
+  toastEl.addEventListener('hidden.bs.toast', function() {
+    toastEl.remove();
+  });
+}
+
+
+function showCitedTextPopup(citedText, fileName, pageNumber) {
+  let modalContainer = document.getElementById("citation-modal");
+  if (!modalContainer) {
+    modalContainer = document.createElement("div");
+    modalContainer.id = "citation-modal";
+    modalContainer.classList.add("modal", "fade");
+    modalContainer.tabIndex = -1;
+    modalContainer.setAttribute("aria-hidden", "true");
+
+    modalContainer.innerHTML = `
+      <div class="modal-dialog" style="max-width: 90%; width: 90%; margin: 1.75rem auto;">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h5 class="modal-title">Source: ${fileName}, Page: ${pageNumber}</h5>
+            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+          </div>
+          <div class="modal-body" style="height: 80vh; overflow-y: auto;">
+            <div id="cited-text-content" class="document-formatted"></div>
+          </div>
+        </div>
+      </div>
+    `;
+    document.body.appendChild(modalContainer);
+  } else {
+    const modalTitle = modalContainer.querySelector(".modal-title");
+    if (modalTitle) {
+      modalTitle.textContent = `Source: ${fileName}, Page: ${pageNumber}`;
+    }
+    
+    // Update existing modal with new size
+    const modalDialog = modalContainer.querySelector('.modal-dialog');
+    if (modalDialog) {
+      modalDialog.className = 'modal-dialog';
+      modalDialog.style.maxWidth = '90%';
+      modalDialog.style.width = '90%';
+      modalDialog.style.margin = '1.75rem auto';
+    }
+    
+    // Update modal body height
+    const modalBody = modalContainer.querySelector('.modal-body');
+    if (modalBody) {
+      modalBody.style.height = '80vh';
+      modalBody.style.overflowY = 'auto';
+    }
+  }
+
+  const citedTextContent = document.getElementById("cited-text-content");
+  if (citedTextContent) {
+    // Format the text with improved paragraph detection
+    citedTextContent.innerHTML = formatDocumentText(citedText);
+  }
+
+  const modal = new bootstrap.Modal(modalContainer);
+  modal.show();
+}
+
+// Helper function for formatting text documents
+function formatDocumentText(text) {
+  // Safety escape HTML characters
+  let safeText = text
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;');
+  
+  // Split into lines
+  const lines = safeText.split('\n');
+  let formattedHtml = '';
+  let inParagraph = false;
+  
+  lines.forEach((line, index) => {
+    // Trim the line
+    const trimmedLine = line.trim();
+    
+    // Skip empty lines
+    if (trimmedLine === '') {
+      if (inParagraph) {
+        formattedHtml += '</p>\n';
+        inParagraph = false;
+      }
+      return;
+    }
+    
+    // Check if line is likely a heading
+    const isHeading = /^(?:[A-Z\s0-9]+|[0-9]+\.\s+[A-Z])/.test(trimmedLine) && 
+                      trimmedLine.length < 100 &&
+                      !trimmedLine.includes(',');
+    
+    // Check if line is likely a new paragraph start
+    const isNewParagraph = !inParagraph || 
+                           /^(?:[A-Z*]|[0-9]+\.)/.test(trimmedLine) ||
+                           (index > 0 && lines[index-1].trim() === '');
+    
+    if (isHeading) {
+      // Close previous paragraph if needed
+      if (inParagraph) {
+        formattedHtml += '</p>\n';
+        inParagraph = false;
+      }
+      
+      // Add a heading with some spacing
+      formattedHtml += `<h4 class="document-heading">${trimmedLine}</h4>\n`;
+    } 
+    else {
+      // Regular paragraph content
+      if (isNewParagraph) {
+        // Close previous paragraph if needed
+        if (inParagraph) {
+          formattedHtml += '</p>\n';
+        }
+        
+        // Start new paragraph
+        formattedHtml += `<p class="document-paragraph">${trimmedLine}`;
+        inParagraph = true;
+      } 
+      else {
+        // Continue paragraph with space or line break
+        formattedHtml += ` ${trimmedLine}`;
+      }
+    }
+  });
+  
+  // Close final paragraph if needed
+  if (inParagraph) {
+    formattedHtml += '</p>\n';
+  }
+  
+  return formattedHtml;
 }
 </script>
 {% endblock %}

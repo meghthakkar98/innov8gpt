@@ -36,7 +36,6 @@ main {
 
 #chatbox {
   border: 1px solid #ccc;
-  height: 400px;
   overflow-y: auto;
   padding: 10px;
   background-color: #f9f9f9;
@@ -255,4 +254,55 @@ a.citation-link:hover {
 
 .citation-link i {
   margin-right: 3px;
+}
+
+
+/* Senior-friendly conversation sidebar styles */
+
+/* Container for the conversations list */
+#conversations-list,
+#conversations-list-offcanvas {
+  max-height: 80vh;
+  overflow-y: auto;
+  padding: 0;
+  border-right: 1px solid #dee2e6;
+  background-color: #f8f9fa;
+}
+
+/* Header for conversations section */
+.conversation-header {
+  padding: 15px;
+  border-bottom: 2px solid #dee2e6;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background-color: #f0f4f8;
+}
+
+.conversation-header h5 {
+  font-size: 1.4rem;
+  font-weight: 600;
+  color: #333;
+  margin: 0;
+}
+
+/* New conversation button */
+#new-conversation-btn {
+  padding: 8px 16px;
+  font-size: 1.1rem;
+  font-weight: 500;
+  background-color: #0d6efd;
+  border: none;
+  border-radius: 4px;
+}
+
+#new-conversation-btn:hover {
+  background-color: #0b5ed7;
+}
+
+#active-group-name {
+  margin-top: 2.5%;
+  font-family: Arial, sans-serif;
+  text-transform: uppercase;
+  border-bottom: 1px dashed #000;
 }

@@ -49,7 +49,7 @@ def send_group_invitation_email(recipient_email, recipient_name, group_name, inv
         
         # Create message
         msg = MIMEMultipart('alternative')
-        msg['Subject'] = f"Invitation to join {group_name} channel in {settings.get('app_title', 'Simple Chat')}"
+        msg['Subject'] = f"Invitation to join {group_name} channel in {settings.get('app_title', 'Innov8 GPT')}"
         msg['From'] = from_email
         msg['To'] = recipient_email
         
