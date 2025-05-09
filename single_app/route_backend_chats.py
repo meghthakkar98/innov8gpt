@@ -225,6 +225,7 @@ def register_route_backend_chats(app):
 
             # Hybrid Search - only execute if hybrid_search_enabled is True
             if hybrid_search_enabled:
+            # Do document search
                 if selected_document_id:
                     search_results = hybrid_search(
                         user_message, 
@@ -233,7 +234,7 @@ def register_route_backend_chats(app):
                         top_n=5, 
                         doc_scope=document_scope, 
                         active_group_id=active_group_id,
-                        document_group_id=document_group_id  # Pass document_group_id to hybrid_search
+                        document_group_id=document_group_id
                     )
                 else:
                     search_results = hybrid_search(
@@ -243,9 +244,9 @@ def register_route_backend_chats(app):
                         doc_scope=document_scope, 
                         active_group_id=active_group_id
                     )
+                    
                 if search_results:
                     retrieved_texts = []
-                    # In the hybrid_search section where citations are created:
                     for doc in search_results:
                         chunk_text = doc['chunk_text']
                         file_name = doc['file_name']
@@ -266,15 +267,14 @@ def register_route_backend_chats(app):
                         retrieved_texts.append(f"{chunk_text}\n{citation}")
 
                     retrieved_content = "\n\n".join(retrieved_texts)
+                    
+                    # IMPORTANT CHANGE: When hybrid_search is enabled, explicitly instruct the model to ONLY use provided documents
                     system_prompt = (
-                        "You are an AI assistant provided with the following document excerpts and their sources.\n"
-                        "When you answer the user's question, please cite the sources by including the citations provided after each excerpt.\n"
-                        "Use the format (Source: filename, Page: page number) [#ID] for citations, where ID is the unique identifier provided.\n"
-                        "Ensure your response is informative and includes citations using this format.\n\n"
-                        "For example:\n"
-                        "User: What is the policy on double dipping?\n"
-                        "Assistant: The policy prohibits entities from using federal funds received through one program to apply for additional \n"
-                        "funds through another program, commonly known as 'double dipping' (Source: PolicyDocument.pdf, Page: 12) [#123abc].\n\n"
+                        "You are an AI assistant provided with SPECIFIC DOCUMENT EXCERPTS that contain relevant information to answer the user's question.\n"
+                        "IMPORTANT: YOU MUST ONLY USE THE INFORMATION FROM THESE DOCUMENT EXCERPTS to answer the question. DO NOT use your general knowledge.\n"
+                        "If the documents don't contain the information needed to fully answer the question, you should state that the information is not in the provided documents.\n"
+                        "When you answer, please cite the sources by including the citations provided after each excerpt.\n"
+                        "Use the format (Source: filename, Page: page number) [#ID] for citations, where ID is the unique identifier provided.\n\n"
                         f"{retrieved_content}"
                     )
 
@@ -287,6 +287,42 @@ def register_route_backend_chats(app):
                     })
                     conversation_item['last_updated'] = datetime.utcnow().isoformat()
                     container.upsert_item(body=conversation_item)
+                else:
+                    # No results found - still instruct to only use doc knowledge
+                    system_prompt = (
+                        "You are an AI assistant, but the user has chosen to only use document search for this question.\n"
+                        "Unfortunately, no relevant documents were found for this query.\n"
+                        "Please inform the user that no relevant documents were found for their query, and suggest they try a different query\n"
+                        "or disable document search to use your general knowledge capabilities instead."
+                    )
+                    
+                    system_message_id = f"{conversation_id}_system_{int(time.time())}_{random.randint(1000,9999)}"
+                    conversation_item['messages'].append({
+                        'role': 'system',
+                        'content': system_prompt,
+                        'model_deployment_name': None,
+                        'message_id': system_message_id
+                    })
+                    conversation_item['last_updated'] = datetime.utcnow().isoformat()
+                    container.upsert_item(body=conversation_item)
+
+            elif use_open_ai:
+                # Use general knowledge only
+                system_prompt = (
+                    "You are an AI assistant named Claude. Answer this question based on your general knowledge.\n"
+                    "If you don't know the answer, just say that you don't know, don't try to make up an answer.\n"
+                    "Always cite your sources when referring to studies, statistics, or specific information."
+                )
+                
+                system_message_id = f"{conversation_id}_system_{int(time.time())}_{random.randint(1000,9999)}"
+                conversation_item['messages'].append({
+                    'role': 'system',
+                    'content': system_prompt,
+                    'model_deployment_name': None,
+                    'message_id': system_message_id
+                })
+                conversation_item['last_updated'] = datetime.utcnow().isoformat()
+                container.upsert_item(body=conversation_item)
 
             # Bing Search
             if bing_search_enabled:

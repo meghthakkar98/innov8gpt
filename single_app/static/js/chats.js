@@ -428,25 +428,29 @@ window.onload = function() {
     .then(() => {
       console.log("📄 All data loaded");
       
-      // Make sure document selects are hidden by default
-      const docScopeSel = document.getElementById("doc-scope-select");
-      const docSelectEl = document.getElementById("document-select");
-      
-      if (docScopeSel) {
-        docScopeSel.style.display = "none";
-        console.log("Hidden document scope select");
-      }
-      
-      if (docSelectEl) {
-        docSelectEl.style.display = "none";
-        console.log("Hidden document select");
-      }
-      
-      // Make sure search documents button starts as inactive
+      // Make search documents button active by default
       const searchDocsBtn = document.getElementById("search-documents-btn");
       if (searchDocsBtn) {
-        searchDocsBtn.classList.remove("active");
-        console.log("Ensured search docs button is inactive");
+        searchDocsBtn.classList.add("active"); // ADD active class instead of removing it
+        console.log("Set search docs button to active by default");
+        
+        // Make document selects visible by default
+        const docScopeSel = document.getElementById("doc-scope-select");
+        const docSelectEl = document.getElementById("document-select");
+        
+        if (docScopeSel) {
+          docScopeSel.style.cssText = "display: inline-block !important; max-width: 180px;";
+          console.log("Showing document scope select by default");
+        }
+        
+        if (docSelectEl) {
+          docSelectEl.style.cssText = "display: inline-block !important; max-width: 220px;";
+          console.log("Showing document select by default");
+        }
+        
+        // Initialize document selectors
+        setupDocumentScopeSelect();
+        populateDocumentSelectScope();
       }
     })
     .catch((err) => {
@@ -1769,30 +1773,32 @@ function actuallySendMessage(textVal) {
   console.group("🚀 Sending Message");
   console.log("Message text:", textVal.substring(0, 100) + (textVal.length > 100 ? "..." : ""));
   
-  // Updated logic: Set useOpenAiKnowledge based on whether hybridSearchEnabled is false
-  // This means when Search Documents is OFF, use general knowledge instead
-  let hybridSearchEnabled = false;
-  const sdbtn = document.getElementById("search-documents-btn");
-  if (sdbtn && sdbtn.classList.contains("active")) {
-    hybridSearchEnabled = true;
-  }
-  console.log("Hybrid search enabled:", hybridSearchEnabled);
+  // CRITICAL FIX: Set knowledge source flags based on Search Documents button
+  const searchDocsBtn = document.getElementById("search-documents-btn");
+  const isSearchDocsActive = searchDocsBtn && searchDocsBtn.classList.contains("active");
   
-  // Always set useOpenAiKnowledge to the opposite of hybridSearchEnabled
-  // If hybridSearchEnabled is false, use general knowledge
-  let useOpenAiKnowledge = !hybridSearchEnabled;
-  console.log("Using model's general knowledge:", useOpenAiKnowledge);
+  // When Search Documents is active:
+  //   - Set hybrid_search = true (to search documents)
+  //   - Set use_open_ai = false (to NOT use general knowledge)
+  // When Search Documents is not active:
+  //   - Set hybrid_search = false (to NOT search documents)
+  //   - Set use_open_ai = true (to use general knowledge)
+  const hybridSearchEnabled = isSearchDocsActive;
+  const useOpenAiKnowledge = !isSearchDocsActive;
+  
+  console.log("Search Documents button active:", isSearchDocsActive);
+  console.log("Using document search:", hybridSearchEnabled);
+  console.log("Using AI general knowledge:", useOpenAiKnowledge);
 
   let selectedDocumentId = null;
   let documentGroupId = null;
   let docScopeValue = null;
   
-  if (hybridSearchEnabled) {
-    // Get the full document selection details
+  if (isSearchDocsActive) {
     const docDetails = logDocumentSelectionDetails();
     
     const docSel = document.getElementById("document-select");
-    if (docSel && docSel.value !== "" && docSel.value !== "All Documents") {
+    if (docSel && docSel.value) {
       selectedDocumentId = docSel.value;
       console.log("Selected document ID:", selectedDocumentId);
       
@@ -1808,12 +1814,12 @@ function actuallySendMessage(textVal) {
       }
     }
     
-    // This part is still needed
     const docScopeSel = document.getElementById("doc-scope-select");
     docScopeValue = docScopeSel ? docScopeSel.value : null;
     console.log("Document scope value:", docScopeValue);
   }
 
+  // Other feature flags
   let bingSearchEnabled = false;
   const wbbtn = document.getElementById("search-web-btn");
   if (wbbtn && wbbtn.classList.contains("active")) {
@@ -1828,12 +1834,12 @@ function actuallySendMessage(textVal) {
   }
   console.log("Image generation enabled:", imageGenEnabled);
   
-  // Create payload
+  // Create payload with explicitly set flags for knowledge source
   const payload = {
     message: textVal,
     conversation_id: currentConversationId,
-    use_open_ai: useOpenAiKnowledge,  // This will be true when Search Documents is OFF
-    hybrid_search: hybridSearchEnabled,
+    use_open_ai: useOpenAiKnowledge,       // TRUE only when Search Documents is OFF
+    hybrid_search: hybridSearchEnabled,     // TRUE only when Search Documents is ON
     selected_document_id: selectedDocumentId,
     document_group_id: documentGroupId,
     bing_search: bingSearchEnabled,
@@ -1843,7 +1849,10 @@ function actuallySendMessage(textVal) {
     streaming: true
   };
 
-  // Log the full payload
+  // Log the final payload for debugging
+  console.log("PAYLOAD FLAGS:");
+  console.log("- use_open_ai:", payload.use_open_ai);
+  console.log("- hybrid_search:", payload.hybrid_search);
   console.log("Full payload:", JSON.stringify(payload, null, 2));
   console.groupEnd();
   
